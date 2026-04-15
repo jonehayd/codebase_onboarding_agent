@@ -1,0 +1,124 @@
+<style>
+  #erd svg {
+    width: 100%;
+    height: auto;
+    color: black;
+  }
+  #erd svg text,
+  #erd svg tspan {
+    fill: black !important;
+  }
+</style>
+<div id="erd" style="padding: 8px 0"></div>
+<script type="module">
+  import mermaid from "https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs";
+  await document.fonts.ready;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "base",
+    fontFamily: '"Anthropic Sans", sans-serif',
+    themeVariables: {
+      darkMode: false,
+      fontSize: "13px",
+      fontFamily: '"Anthropic Sans", sans-serif',
+      lineColor: "#000000",
+      textColor: "#000000",
+    },
+  });
+  const diagram = `erDiagram
+  users {
+    uuid id PK
+    string github_id
+    string username
+    string email
+    string github_token
+    timestamp created_at
+  }
+  repos {
+    uuid id PK
+    uuid user_id FK
+    string owner
+    string name
+    string url
+    string commit_hash
+    string status
+    timestamp created_at
+  }
+  files {
+    uuid id PK
+    uuid repo_id FK
+    string file_path
+    string language
+    int size_bytes
+  }
+  chunks {
+    uuid id PK
+    uuid file_id FK
+    string chunk_type
+    string name
+    text content
+    int start_line
+    int end_line
+  }
+  embeddings {
+    uuid id PK
+    uuid chunk_id FK
+    vector vector
+  }
+  sessions {
+    uuid id PK
+    uuid user_id FK
+    uuid repo_id FK
+    timestamp created_at
+  }
+  messages {
+    uuid id PK
+    uuid session_id FK
+    string role
+    text content
+    timestamp created_at
+  }
+
+  users ||--o{ repos : "analyzes"
+  repos ||--o{ files : "contains"
+  files ||--o{ chunks : "split into"
+  chunks ||--|| embeddings : "embedded as"
+  users ||--o{ sessions : "starts"
+  repos ||--o{ sessions : "discussed in"
+  sessions ||--o{ messages : "contains"
+`;
+  const { svg } = await mermaid.render("erd-svg", diagram);
+  document.getElementById("erd").innerHTML = svg;
+
+  document.querySelectorAll("#erd svg .node").forEach((node) => {
+    const firstPath = node.querySelector("path[d]");
+    if (!firstPath) return;
+    const d = firstPath.getAttribute("d");
+    const nums = d.match(/-?[\d.]+/g)?.map(Number);
+    if (!nums || nums.length < 8) return;
+    const xs = [nums[0], nums[2], nums[4], nums[6]];
+    const ys = [nums[1], nums[3], nums[5], nums[7]];
+    const x = Math.min(...xs),
+      y = Math.min(...ys);
+    const w = Math.max(...xs) - x,
+      h = Math.max(...ys) - y;
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", w);
+    rect.setAttribute("height", h);
+    rect.setAttribute("rx", "8");
+    for (const a of ["fill", "stroke", "stroke-width", "class", "style"]) {
+      if (firstPath.hasAttribute(a))
+        rect.setAttribute(a, firstPath.getAttribute(a));
+    }
+    firstPath.replaceWith(rect);
+  });
+  document
+    .querySelectorAll(
+      "#erd svg .row-rect-odd path, #erd svg .row-rect-even path",
+    )
+    .forEach((p) => {
+      p.setAttribute("stroke", "none");
+    });
+</script>
