@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
@@ -15,7 +16,7 @@ class Users(Base):
     username: Mapped[str] = mapped_column(index=True)
     email: Mapped[str] = mapped_column(unique=True, index=True)
     github_token: Mapped[Optional[str]]
-    created_at: Mapped[DateTime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
 class Sessions(Base):
     __tablename__ = "sessions"
@@ -23,7 +24,7 @@ class Sessions(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), index=True)
-    created_at: Mapped[DateTime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
 class Messages(Base):
     __tablename__ = "messages"
@@ -32,7 +33,7 @@ class Messages(Base):
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     role: Mapped[str]
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[DateTime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
 # --- Repository related tables ---    
 
@@ -45,7 +46,7 @@ class Repositories(Base):
     url: Mapped[str] = mapped_column(unique=True)
     commit_hash: Mapped[str]
     status: Mapped[str]
-    created_at: Mapped[DateTime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
 # Association table for many-to-many relationship between users and repositories
 class UserRepositories(Base):
