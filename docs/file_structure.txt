@@ -1,0 +1,73 @@
+codebase_onboarding_agent/
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── api/
+│   │   │   ├── __init__.py
+│   │   │   ├── dependencies.py
+│   │   │   └── routes/
+│   │   │       ├── __init__.py
+│   │   │       ├── analyze.py
+│   │   │       ├── chat.py
+│   │   │       ├── repo.py
+│   │   │       └── status.py
+│   │   ├── db/
+│   │   │   ├── __init__.py
+│   │   │   ├── database.py
+│   │   │   └── models.py
+│   │   ├── ingestion/
+│   │   │   ├── __init__.py
+│   │   │   ├── github_client.py
+│   │   │   ├── file_filter.py
+│   │   │   ├── parser.py
+│   │   │   └── chunker.py
+│   │   ├── rag/
+│   │   │   ├── __init__.py
+│   │   │   ├── embeddings.py
+│   │   │   ├── retriever.py
+│   │   │   ├── prompt_builder.py
+│   │   │   └── llm_client.py
+│   │   └── services/
+│   │       ├── __init__.py
+│   │       ├── analyze.py
+│   │       └── chat.py
+│   ├── tests/
+│   │   ├── test_parser.py
+│   │   ├── test_chunker.py
+│   │   └── test_api.py
+│   ├── .env
+│   ├── .env.example
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── main.tsx
+│   │   ├── App.tsx
+│   │   ├── components/
+│   │   │   ├── RepoInput.tsx
+│   │   │   ├── IngestionProgress.tsx
+│   │   │   ├── ChatInterface.tsx
+│   │   │   ├── FileTreeSidebar.tsx
+│   │   │   └── ShareLink.tsx
+│   │   ├── hooks/
+│   │   │   ├── useIngestion.ts
+│   │   │   └── useChat.ts
+│   │   ├── api/
+│   │   │   └── client.ts
+│   │   └── types/
+│   │       └── index.ts
+│   ├── public/
+│   ├── index.html
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   └── package.json
+├── scratch/
+├── infra/
+│   ├── nginx.conf
+│   ├── codebase-onboarding.service
+│   └── cloudwatch-config.json
+├── docker-compose.yml
+├── Project_Overview.md
+├── Project_Plan.md
+└── README.md
