@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     
     # Embedding settings
     embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
+    embedding_dimensions: int = 2048
     top_k_chunks: int = 5
     
     # LLM settings
