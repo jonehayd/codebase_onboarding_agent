@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     top_k_chunks: int = 5
     
     # LLM settings
-    llm_model: str = "claude-haiku-4-5"
+    anthropic_model: str = "claude-haiku-4-5"
     max_response_tokens: int = 1024
     temperature: float = 0.7    
 
