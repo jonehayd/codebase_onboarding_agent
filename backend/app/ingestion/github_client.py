@@ -63,3 +63,31 @@ def fetch_files(repo: "github.Repository.Repository", path=""):
     except Exception as e:
         print(f"Error fetching files from {repo.full_name} at path '{path}': {e}")
         return []
+
+def fetch_files_by_paths(repo: "github.Repository.Repository", paths: set[str]) -> list[dict]:
+    """Fetch specific files from a GitHub repository by their paths.
+
+    Args:
+        repo (github.Repository.Repository): The repository object.
+        paths (set[str]): Set of file paths to fetch.
+
+    Returns:
+        list: A list of dictionaries containing the file path, content, size, and language.
+    """
+    files = []
+    for path in paths:
+        try:
+            item = repo.get_contents(path)
+            if should_include(item.path, item.size):
+                text = item.decoded_content.decode("utf-8", errors="ignore")
+                files.append({
+                    "path": item.path,
+                    "content": text,
+                    "size": item.size,
+                    "language": item.path.rsplit(".", 1)[-1] if "." in item.path else "unknown",
+                })
+        except github.UnknownObjectException:
+            pass  # File was deleted in the diff; skip it
+        except Exception as e:
+            print(f"Error fetching {path} from {repo.full_name}: {e}")
+    return files

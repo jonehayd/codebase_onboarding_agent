@@ -44,7 +44,7 @@ class Repositories(Base):
     owner: Mapped[str]
     name: Mapped[str]
     url: Mapped[str] = mapped_column(unique=True)
-    commit_hash: Mapped[str]
+    commit_hash: Mapped[Optional[str]]
     status: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
