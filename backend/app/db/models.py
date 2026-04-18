@@ -14,8 +14,9 @@ class Users(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     github_id: Mapped[str] = mapped_column(unique=True, index=True)
     username: Mapped[str] = mapped_column(index=True)
-    email: Mapped[str] = mapped_column(unique=True, index=True)
+    email: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     github_token: Mapped[Optional[str]]
+    has_repo_access: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
 class Sessions(Base):

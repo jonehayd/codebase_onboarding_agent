@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     anthropic_key: str
     database_url: str
     
+    # JWT & OAuth settings
+    jwt_secret: str
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
+    github_client_id: str
+    github_client_secret: str
+    
     # Repository processing settings
     max_file_size_bytes: int = 100_000 # Skip files larger than 100 KB
     max_files_per_repo: int = 10_000
