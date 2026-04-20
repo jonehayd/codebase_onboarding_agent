@@ -1,8 +1,10 @@
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.db.database import get_db
@@ -10,6 +12,7 @@ from app.db.models import Users
 from app.utility.auth import create_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -33,7 +36,8 @@ def github_login(private: bool = False):
     return RedirectResponse(url=f"{GITHUB_AUTH_URL}?{query_string}")
 
 @router.get("/github/callback")
-def github_callback(code: str, state: str | None = None, db: Session = Depends(get_db)):
+@limiter.limit("20/hour")
+def github_callback(request: Request,code: str, state: str | None = None, db: Session = Depends(get_db)):
     """Handles the callback from GitHub after user authorization.
 
     Args:

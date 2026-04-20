@@ -1,10 +1,12 @@
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
@@ -12,6 +14,7 @@ from app.db.models import Repositories, UserRepositories, Users
 from app.services.chat import stream_chat, get_conversation_history
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+limiter = Limiter(key_func=get_remote_address)
 
 class ChatRequest(BaseModel):
     repo_id: int
@@ -54,15 +57,17 @@ def _verify_repo_access(user_id: int, repo_id: int, db: Session) -> bool:
     return repo
 
 @router.post("")
+@limiter.limit("30/day")
 def chat(
-    request: ChatRequest,
+    request: Request,
+    chat_request: ChatRequest,
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> StreamingResponse:
     """Stream a chat response about a repository.
 
     Args:
-        request (ChatRequest): The chat request containing repo_id and question.
+        chat_request (ChatRequest): The chat request containing repo_id and question.
         current_user (Users): The authenticated user.
         db (Session): The database session.
 
@@ -70,13 +75,13 @@ def chat(
         StreamingResponse: SSE stream of response tokens.
     """
     
-    _verify_repo_access(request.repo_id, current_user.id, db)
+    _verify_repo_access(chat_request.repo_id, current_user.id, db)
     
     def generate():
         for token in stream_chat(
             user_id=current_user.id,
-            repo_id=request.repo_id,
-            question=request.question,
+            repo_id=chat_request.repo_id,
+            question=chat_request.question,
             db=db
         ):
             yield f"data: {token}\n\n"
