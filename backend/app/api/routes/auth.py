@@ -1,5 +1,5 @@
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -37,7 +37,7 @@ def github_login(private: bool = False):
 
 @router.get("/github/callback")
 @limiter.limit("20/hour")
-def github_callback(code: str, state: str | None = None, db: Session = Depends(get_db)):
+def github_callback(request: Request,code: str, state: str | None = None, db: Session = Depends(get_db)):
     """Handles the callback from GitHub after user authorization.
 
     Args:

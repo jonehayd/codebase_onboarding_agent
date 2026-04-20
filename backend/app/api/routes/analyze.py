@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from slowapi import Limiter
@@ -38,6 +38,7 @@ def _parse_github_url(url: str) -> tuple[str, str]:
 @router.post("")
 @limiter.limit("3/day")
 def analyze(
+    request: Request,
     url: str,
     background_tasks: BackgroundTasks,
     current_user: Users = Depends(get_current_user),

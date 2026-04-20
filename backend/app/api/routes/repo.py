@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from slowapi import Limiter
@@ -161,6 +161,7 @@ def get_repo_files(
 @router.get("/{repo_id}/files/{file_id}/content")
 @limiter.limit("200/hour")
 def get_file_content(
+    request: Request,
     repo_id: int,
     file_id: int,
     current_user: Users = Depends(get_current_user),

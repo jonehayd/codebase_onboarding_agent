@@ -1,6 +1,6 @@
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -59,14 +59,15 @@ def _verify_repo_access(user_id: int, repo_id: int, db: Session) -> bool:
 @router.post("")
 @limiter.limit("30/day")
 def chat(
-    request: ChatRequest,
+    request: Request,
+    chat_request: ChatRequest,
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> StreamingResponse:
     """Stream a chat response about a repository.
 
     Args:
-        request (ChatRequest): The chat request containing repo_id and question.
+        chat_request (ChatRequest): The chat request containing repo_id and question.
         current_user (Users): The authenticated user.
         db (Session): The database session.
 
@@ -74,13 +75,13 @@ def chat(
         StreamingResponse: SSE stream of response tokens.
     """
     
-    _verify_repo_access(request.repo_id, current_user.id, db)
+    _verify_repo_access(chat_request.repo_id, current_user.id, db)
     
     def generate():
         for token in stream_chat(
             user_id=current_user.id,
-            repo_id=request.repo_id,
-            question=request.question,
+            repo_id=chat_request.repo_id,
+            question=chat_request.question,
             db=db
         ):
             yield f"data: {token}\n\n"
