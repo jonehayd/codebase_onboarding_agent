@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.config import RepoStatus
-from app.db.models import CodeChunks, Files, Repositories, UserRepositories
+from app.db.models import CodeChunks, Files, Repositories
 from app.ingestion.chunker import extract_chunks
 from app.ingestion.github_client import fetch_files, fetch_files_by_paths, fetch_repo
 from app.ingestion.parser import parse_file
@@ -91,25 +91,6 @@ def get_changed_file_paths(gh_repo, old_sha: str, new_sha: str) -> set[str]:
     """
     comparison = gh_repo.compare(old_sha, new_sha)
     return {f.filename for f in comparison.files if f.status in ("added", "modified")}
-
-
-def add_user_repo(user_id: int, repo_id: int, db: Session) -> None:
-    """Add a UserRepositories entry if one does not already exist.
-
-    Args:
-        user_id (int): The ID of the user.
-        repo_id (int): The ID of the repository.
-        db (Session): The database session.
-    """
-    existing = db.execute(
-        select(UserRepositories).where(
-            UserRepositories.user_id == user_id,
-            UserRepositories.repo_id == repo_id,
-        )
-    ).scalar_one_or_none()
-    if not existing:
-        db.add(UserRepositories(user_id=user_id, repo_id=repo_id))
-        db.commit()
 
 
 def _ingest_files(repo_id: int, files: list[dict], db: Session) -> None:
@@ -266,8 +247,6 @@ def analyze_repo(user_id: int, owner: str, name: str, db: Session) -> None:
     else:
         print(f"Repository {owner}/{name} is up to date. Skipping ingestion.")
         repo_id = existing.id
-
-    add_user_repo(user_id, repo_id, db)
 
 
 

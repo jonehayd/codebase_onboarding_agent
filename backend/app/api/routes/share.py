@@ -7,11 +7,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.db.database import get_db
-from app.db.models import Repositories, ShareableLinks
+from app.db.models import Repositories, Sessions, ShareableLinks
 from app.services.chat import stream_chat
 
 router = APIRouter(prefix="/share", tags=["share"])
 limiter = Limiter(key_func=get_remote_address)
+
 
 class ShareChatRequest(BaseModel):
     question: str
@@ -22,18 +23,7 @@ def get_shared_repo(
     token: str,
     db: Session = Depends(get_db),
 ):
-    """Get repo metadata for a shareable link. No auth required.
-
-    Args:
-        token (str): The shareable link token.
-        db (Session): The database session.
-
-    Returns:
-        dict: Repository metadata.
-
-    Raises:
-        HTTPException: If the token is invalid.
-    """
+    """Get repo metadata for a shareable link. No auth required."""
     link = db.execute(
         select(ShareableLinks).where(ShareableLinks.token == token)
     ).scalar_one_or_none()
@@ -44,9 +34,11 @@ def get_shared_repo(
             detail="Share link not found or has been revoked",
         )
 
-    repo = db.get(Repositories, link.repo_id)
+    session = db.get(Sessions, link.session_id)
+    repo = db.get(Repositories, session.repo_id)
 
     return {
+        "session_id": session.id,
         "repo_id": repo.id,
         "owner": repo.owner,
         "name": repo.name,
@@ -64,17 +56,7 @@ def shared_chat(
     db: Session = Depends(get_db),
 ):
     """Chat about a repo via a shareable link. No auth required.
-    Uses the repo owner's context — anonymous users can ask questions
-    but conversation history is not saved.
-
-    Args:
-        request (Request): The FastAPI request object.
-        token (str): The shareable link token.
-        body (ShareChatRequest): The question to ask.
-        db (Session): The database session.
-
-    Returns:
-        StreamingResponse: SSE stream of response tokens.
+    Uses the link creator's context — conversation history is not saved.
     """
     link = db.execute(
         select(ShareableLinks).where(ShareableLinks.token == token)
@@ -86,7 +68,9 @@ def shared_chat(
             detail="Share link not found or has been revoked",
         )
 
-    repo = db.get(Repositories, link.repo_id)
+    session = db.get(Sessions, link.session_id)
+    repo = db.get(Repositories, session.repo_id)
+
     if repo.status != "completed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -94,11 +78,9 @@ def shared_chat(
         )
 
     def generate():
-        # use the link creator's user_id so session history works
-        # but don't save messages for anonymous users
         for token_text in stream_chat(
             user_id=link.created_by,
-            repo_id=link.repo_id,
+            repo_id=repo.id,
             question=body.question,
             db=db,
         ):
