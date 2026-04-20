@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import CodeChunks, Files, Repositories, UserRepositories, Users
+from app.config import settings
 
 router = APIRouter(prefix="/repo", tags=["repo"])
 
@@ -151,4 +152,70 @@ def get_repo_files(
             }
             for f in files
         ],
+    }
+    
+@router.get("/{repo_id}/files/{file_id}/content")
+def get_file_content(
+    repo_id: int,
+    file_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get the content of a specific file in a repository.
+
+    Args:
+        repo_id (int): The ID of the repository.
+        file_id (int): The ID of the file.
+        current_user (Users, optional): The authenticated user. Defaults to Depends(get_current_user).
+        db (Session, optional): The database session. Defaults to Depends(get_db).
+
+    Raises:
+        HTTPException: If the repository is not found.
+        HTTPException: If the file is not found.
+        HTTPException: If there is an error fetching the file from GitHub.
+
+    Returns:
+        dict: The file content and metadata.
+    """
+    
+    access = db.execute(
+        select(UserRepositories).where(
+            UserRepositories.user_id == current_user.id,
+            UserRepositories.repo_id == repo_id,
+        )
+    ).scalar_one_or_none()
+
+    if not access:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    file = db.execute(
+        select(Files).where(
+            Files.id == file_id,
+            Files.repo_id == repo_id,
+        )
+    ).scalar_one_or_none()
+
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    repo = db.get(Repositories, repo_id)
+
+    try:
+        from github import Auth, Github
+        token = current_user.github_token or settings.github_token
+        g = Github(auth=Auth.Token(token))
+        gh_repo = g.get_repo(f"{repo.owner}/{repo.name}")
+        gh_file = gh_repo.get_contents(file.file_path)
+        content = gh_file.decoded_content.decode("utf-8", errors="ignore")
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to fetch file from GitHub: {e}",
+        )
+
+    return {
+        "id": file.id,
+        "file_path": file.file_path,
+        "language": file.language,
+        "content": content,
     }
