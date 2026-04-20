@@ -3,6 +3,8 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 from pgvector.sqlalchemy import Vector
+import secrets
+
 from app.db.database import Base
 from app.config import settings
 
@@ -34,6 +36,15 @@ class Messages(Base):
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     role: Mapped[str]
     content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+class ShareableLinks(Base):
+    __tablename__ = "shareable_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    repo_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    token: Mapped[str] = mapped_column(unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
 # --- Repository related tables ---    
