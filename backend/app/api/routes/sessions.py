@@ -77,6 +77,10 @@ class ChatRequest(BaseModel):
     question: str
 
 
+class PatchSessionRequest(BaseModel):
+    title: str
+
+
 # --- Session CRUD ---
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -183,6 +187,20 @@ def get_session(
             "chunk_count": chunk_count,
         },
     }
+
+
+@router.patch("/{session_id}")
+def update_session(
+    session_id: int,
+    body: PatchSessionRequest,
+    current_user: Users = Depends(get_current_user),
+    db: DBSession = Depends(get_db),
+):
+    """Update a session's title."""
+    session = _get_session_or_404(session_id, current_user.id, db)
+    session.title = body.title
+    db.commit()
+    return {"session_id": session.id, "title": session.title}
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
