@@ -5,6 +5,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
@@ -12,6 +14,7 @@ from app.db.models import Repositories, UserRepositories, Users
 from app.services.chat import stream_chat, get_conversation_history
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+limiter = Limiter(key_func=get_remote_address)
 
 class ChatRequest(BaseModel):
     repo_id: int
@@ -54,6 +57,7 @@ def _verify_repo_access(user_id: int, repo_id: int, db: Session) -> bool:
     return repo
 
 @router.post("")
+@limiter.limit("30/day")
 def chat(
     request: ChatRequest,
     current_user: Users = Depends(get_current_user),

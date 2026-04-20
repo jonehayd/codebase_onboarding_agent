@@ -1,6 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
@@ -8,6 +10,7 @@ from app.db.models import Repositories, Users
 from app.services.analyze import analyze_repo
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
+limiter = Limiter(key_func=get_remote_address)
 
 def _parse_github_url(url: str) -> tuple[str, str]:
     """Parse a GitHub URL into owner and repo name.
@@ -33,7 +36,8 @@ def _parse_github_url(url: str) -> tuple[str, str]:
                              detail="Invalid GitHub URL. Expected format: https://github.com/{owner}/{repo}")
         
 @router.post("")
-def analayze(
+@limiter.limit("3/day")
+def analyze(
     url: str,
     background_tasks: BackgroundTasks,
     current_user: Users = Depends(get_current_user),
