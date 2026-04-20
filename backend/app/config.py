@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     github_client_id: str
     github_client_secret: str
     
+    frontend_url: str = "http://localhost:3000"
+
     # Repository processing settings
     max_file_size_bytes: int = 100_000 # Skip files larger than 100 KB
     max_files_per_repo: int = 10_000

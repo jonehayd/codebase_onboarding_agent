@@ -39,7 +39,7 @@ def create_session(
     return session, repo
 
 
-def run_ingestion(repo_id: int, owner: str, name: str, db: DBSession) -> None:
+def run_ingestion(repo_id: int, owner: str, name: str, db: DBSession, github_token: str | None = None) -> None:
     """Run full or incremental ingestion for an existing repo record.
 
     Skips if the repo is already COMPLETED and up to date.
@@ -48,7 +48,7 @@ def run_ingestion(repo_id: int, owner: str, name: str, db: DBSession) -> None:
     if not repo or repo.status == RepoStatus.COMPLETED:
         return
 
-    gh_repo = fetch_repo(owner, name)
+    gh_repo = fetch_repo(owner, name, token=github_token)
     latest_hash = get_latest_commit_hash(gh_repo)
 
     if repo.commit_hash and repo.commit_hash != latest_hash:

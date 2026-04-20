@@ -60,7 +60,7 @@ def create_session(
     owner, name = _parse_github_url(url)
     session, repo = session_svc.create_session(current_user.id, owner, name, db, title=title)
     if repo.status != "completed":
-        background_tasks.add_task(session_svc.run_ingestion, repo.id, owner, name, db)
+        background_tasks.add_task(session_svc.run_ingestion, repo.id, owner, name, db, current_user.github_token)
     return {
         "session_id": session.id,
         "repo_id": repo.id,
