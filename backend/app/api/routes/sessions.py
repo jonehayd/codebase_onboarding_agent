@@ -58,6 +58,16 @@ def create_session(
 ):
     """Create a session for a GitHub repository and trigger ingestion."""
     owner, name = _parse_github_url(url)
+
+    session_count = db.execute(
+        select(func.count()).select_from(Sessions).where(Sessions.user_id == current_user.id)
+    ).scalar()
+    if session_count >= settings.max_sessions_per_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Session limit reached ({settings.max_sessions_per_user} max). Delete an existing session to create a new one.",
+        )
+
     session, repo = session_svc.create_session(current_user.id, owner, name, db, title=title)
     if repo.status != "completed":
         background_tasks.add_task(session_svc.run_ingestion, repo.id, owner, name, db, current_user.github_token)
@@ -211,12 +221,14 @@ def chat(
 @router.get("/{session_id}/history")
 def get_history(
     session_id: int,
+    limit: int = 50,
+    offset: int = 0,
     current_user: Users = Depends(get_current_user),
     db: DBSession = Depends(get_db),
 ):
-    """Get conversation history for a session."""
+    """Get conversation history for a session with pagination."""
     _get_session_or_404(session_id, current_user.id, db)
-    return get_conversation_history(session_id, db)
+    return get_conversation_history(session_id, db, limit=limit, offset=offset)
 
 
 # --- Files ---

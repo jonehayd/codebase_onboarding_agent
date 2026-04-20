@@ -40,24 +40,32 @@ def get_or_create_session(user_id: int, repo_id: int, db: Session) -> Sessions:
     db.refresh(session)
     return session
 
-def get_conversation_history(session_id: int, db: Session) -> list[dict]:
-    """Retrieve all messages for a session in chronological order.
+def get_conversation_history(
+    session_id: int,
+    db: Session,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """Retrieve messages for a session in chronological order with pagination.
 
-    Args:
-        session_id (int): The ID of the session.
-        db (Session): The database session.
-
-    Returns:
-        list[dict]: List of message dicts with role and content.
+    Returns a dict with messages, total count, limit, and offset.
     """
-    
+    base = select(Messages).where(Messages.session_id == session_id)
+
+    total = db.execute(
+        select(func.count()).select_from(base.subquery())
+    ).scalar()
+
     messages = db.execute(
-        select(Messages)
-        .where(Messages.session_id == session_id)
-        .order_by(Messages.created_at.asc())
+        base.order_by(Messages.created_at.asc()).limit(limit).offset(offset)
     ).scalars().all()
-    
-    return [{"role": message.role, "content": message.content} for message in messages]
+
+    return {
+        "messages": [{"role": m.role, "content": m.content, "created_at": m.created_at} for m in messages],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 def save_message(session_id: int, role: str, content: str, db: Session) -> Messages:
     """Save a message to the database.
