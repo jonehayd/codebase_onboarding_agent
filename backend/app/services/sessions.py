@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session as DBSession
@@ -12,6 +13,8 @@ from app.services.analyze import (
     ingest_repo,
     ingest_changed_files,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def create_session(
@@ -47,6 +50,7 @@ def run_ingestion(repo_id: int, owner: str, name: str, db: DBSession, github_tok
     """
     repo = db.get(Repositories, repo_id)
     if not repo or repo.status == RepoStatus.COMPLETED:
+        logger.info("Skipping ingestion for %s/%s (status=%s)", owner, name, repo.status if repo else "missing")
         return
 
     gh_repo = fetch_repo(owner, name, token=github_token)

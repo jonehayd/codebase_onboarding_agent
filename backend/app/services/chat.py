@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Generator
 
 from sqlalchemy.orm import Session
@@ -8,6 +9,8 @@ from app.rag.retriever import retrieve_chunks
 from app.rag.prompt_builder import build_prompt
 from app.rag.llm_client import stream_responses, get_response
 from app.config import MessageRole
+
+logger = logging.getLogger(__name__)
 
 def get_or_create_session(user_id: int, repo_id: int, db: Session) -> Sessions:
     """Get an existing session for the user and repository, or create a new one if it doesn't exist.
@@ -104,17 +107,20 @@ def stream_chat(
         session = db.get(Sessions, session_id)
     else:
         session = get_or_create_session(user_id, repo_id, db)
-    
+
+    logger.info(
+        "Chat request: session=%d repo=%d question_len=%d",
+        session.id, repo_id, len(question),
+    )
+
     db.execute(sql_update(Sessions).where(Sessions.id == session.id).values(last_active_at=func.now()))
     db.commit()
 
-    # save user message
     save_message(session.id, MessageRole.USER, question, db)
-    
-    # Retrieve relevant chunks
+
     chunks = retrieve_chunks(question, repo_id, db, top_k)
-    
-    # Build prompt with retrieved context
+    logger.debug("Retrieved %d chunk(s) for session=%d", len(chunks), session.id)
+
     prompt = build_prompt(question, chunks)
     
     # Stream response and collect full text for saving
