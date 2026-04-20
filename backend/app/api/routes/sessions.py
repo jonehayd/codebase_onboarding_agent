@@ -1,3 +1,6 @@
+import re
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -19,18 +22,46 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 limiter = Limiter(key_func=get_remote_address)
 
 
+# GitHub username: 1-39 chars, alphanumeric + hyphens, no leading/trailing hyphen
+_OWNER_RE = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$")
+# GitHub repo name: 1-100 chars, alphanumeric + hyphens + underscores + dots, no leading dot
+_REPO_RE = re.compile(r"^[a-zA-Z0-9_-][a-zA-Z0-9._-]{0,99}$")
+
+
 def _parse_github_url(url: str) -> tuple[str, str]:
-    try:
-        url = url.rstrip("/").replace("https://github.com/", "").replace("http://github.com/", "")
-        parts = url.split("/")
-        if len(parts) != 2 or not parts[0] or not parts[1]:
-            raise ValueError
-        return parts[0], parts[1]
-    except ValueError:
+    parsed = urlparse(url.strip())
+
+    if parsed.scheme not in ("http", "https"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid GitHub URL. Expected format: https://github.com/{owner}/{repo}",
         )
+    if parsed.netloc.lower() not in ("github.com", "www.github.com"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="URL must point to github.com",
+        )
+
+    parts = parsed.path.strip("/").split("/")
+    if len(parts) != 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid GitHub URL. Expected format: https://github.com/{owner}/{repo}",
+        )
+
+    owner, repo = parts
+    if not _OWNER_RE.match(owner):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid repository owner '{owner}'",
+        )
+    if not _REPO_RE.match(repo):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid repository name '{repo}'",
+        )
+
+    return owner, repo
 
 
 def _get_session_or_404(session_id: int, user_id: int, db: DBSession) -> Sessions:
