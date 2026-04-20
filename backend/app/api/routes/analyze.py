@@ -54,7 +54,7 @@ def analayze(
     """
     
     owner, name = _parse_github_url(url)
-    background_tasks.add_task(analyze_repo, owner, name, current_user.id, db)
+    background_tasks.add_task(analyze_repo, current_user.id, owner, name, db)
     return {"message": "Analysis started", "owner": owner, "name": name}
 
 @router.get("/status")
