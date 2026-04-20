@@ -81,6 +81,7 @@ def stream_chat(
     question: str,
     db: Session,
     top_k: int = 8,
+    session_id: int | None = None,
 ) -> Generator[str, None, None]:
     """Main entry point for the chat pipeline.
     Retrieves relevant chunks, builds a prompt, streams the LLM response,
@@ -92,13 +93,17 @@ def stream_chat(
         question (str): The user's question.
         db (Session): The database session.
         top_k (int): Number of chunks to retrieve. Defaults to 8.
+        session_id (int | None): Explicit session ID; if None, one is found or created.
 
     Yields:
         str: Text tokens streamed from the LLM.
     """
-    
-    # Get or create session
-    session = get_or_create_session(user_id, repo_id, db)
+
+    # Use explicit session_id when provided (sessions-centric flow)
+    if session_id is not None:
+        session = db.get(Sessions, session_id)
+    else:
+        session = get_or_create_session(user_id, repo_id, db)
     
     # save user message
     save_message(session.id, MessageRole.USER, question, db)

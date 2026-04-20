@@ -7,8 +7,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from unittest.mock import MagicMock, patch
 
-from app.api.routes.analyze import router as analyze_router, limiter as analyze_limiter
-from app.api.routes.chat import router as chat_router, limiter as chat_limiter
+from app.api.routes.sessions import router as sessions_router, limiter as sessions_limiter
 from app.db.database import get_db
 from app.api.dependencies import get_current_user
 from app.db.models import Users
@@ -51,23 +50,19 @@ def _make_mock_db():
 def reset_limiter_storage():
     """Reset slowapi in-memory storage before every test to prevent state bleed."""
     try:
-        analyze_limiter._storage.reset()
-    except Exception:
-        pass
-    try:
-        chat_limiter._storage.reset()
+        sessions_limiter._storage.reset()
     except Exception:
         pass
     yield
 
 
-# --- Analyze rate limit tests ---
+# --- POST /sessions rate limit tests ---
 
-class TestAnalyzeRateLimit:
+class TestCreateSessionRateLimit:
     @pytest.fixture()
     def client(self):
         limiter = Limiter(key_func=get_remote_address, default_limits=[])
-        app = _make_app(analyze_router, limiter)
+        app = _make_app(sessions_router, limiter)
         app.dependency_overrides[get_current_user] = lambda: _make_mock_user()
         app.dependency_overrides[get_db] = lambda: _make_mock_db()
         yield TestClient(app), limiter
@@ -75,9 +70,17 @@ class TestAnalyzeRateLimit:
 
     def test_first_request_succeeds(self, client):
         tc, _ = client
-        with patch("app.api.routes.analyze.analyze_repo"):
-            response = tc.post("/analyze?url=https://github.com/owner/repo")
-        assert response.status_code in (200, 202)
+        with patch("app.api.routes.sessions.session_svc.create_session") as mock_create, \
+             patch("app.api.routes.sessions.session_svc.run_ingestion"):
+            mock_session = MagicMock()
+            mock_session.id = 1
+            mock_session.created_at = "2026-01-01"
+            mock_repo = MagicMock()
+            mock_repo.id = 1
+            mock_repo.status = "pending"
+            mock_create.return_value = (mock_session, mock_repo)
+            response = tc.post("/sessions?url=https://github.com/owner/repo")
+        assert response.status_code in (200, 201)
 
     def test_returns_429_after_limit_exceeded(self, client):
         tc, _ = client
@@ -85,9 +88,17 @@ class TestAnalyzeRateLimit:
             key_func=get_remote_address,
             default_limits=["2/minute"],
         )
-        with patch("app.api.routes.analyze.analyze_repo"):
+        with patch("app.api.routes.sessions.session_svc.create_session") as mock_create, \
+             patch("app.api.routes.sessions.session_svc.run_ingestion"):
+            mock_session = MagicMock()
+            mock_session.id = 1
+            mock_session.created_at = "2026-01-01"
+            mock_repo = MagicMock()
+            mock_repo.id = 1
+            mock_repo.status = "pending"
+            mock_create.return_value = (mock_session, mock_repo)
             responses = [
-                tc.post("/analyze?url=https://github.com/owner/repo")
+                tc.post("/sessions?url=https://github.com/owner/repo")
                 for _ in range(3)
             ]
         assert 429 in [r.status_code for r in responses]
@@ -98,9 +109,17 @@ class TestAnalyzeRateLimit:
             key_func=get_remote_address,
             default_limits=["1/minute"],
         )
-        with patch("app.api.routes.analyze.analyze_repo"):
-            tc.post("/analyze?url=https://github.com/owner/repo")
-            response = tc.post("/analyze?url=https://github.com/owner/repo")
+        with patch("app.api.routes.sessions.session_svc.create_session") as mock_create, \
+             patch("app.api.routes.sessions.session_svc.run_ingestion"):
+            mock_session = MagicMock()
+            mock_session.id = 1
+            mock_session.created_at = "2026-01-01"
+            mock_repo = MagicMock()
+            mock_repo.id = 1
+            mock_repo.status = "pending"
+            mock_create.return_value = (mock_session, mock_repo)
+            tc.post("/sessions?url=https://github.com/owner/repo")
+            response = tc.post("/sessions?url=https://github.com/owner/repo")
         if response.status_code == 429:
             assert "error" in response.json()
 
@@ -110,18 +129,26 @@ class TestAnalyzeRateLimit:
             key_func=get_remote_address,
             default_limits=["10/minute"],
         )
-        with patch("app.api.routes.analyze.analyze_repo"):
-            response = tc.post("/analyze?url=https://github.com/owner/repo")
+        with patch("app.api.routes.sessions.session_svc.create_session") as mock_create, \
+             patch("app.api.routes.sessions.session_svc.run_ingestion"):
+            mock_session = MagicMock()
+            mock_session.id = 1
+            mock_session.created_at = "2026-01-01"
+            mock_repo = MagicMock()
+            mock_repo.id = 1
+            mock_repo.status = "pending"
+            mock_create.return_value = (mock_session, mock_repo)
+            response = tc.post("/sessions?url=https://github.com/owner/repo")
         assert response.status_code != 429
 
 
-# --- Chat rate limit tests ---
+# --- POST /sessions/{id}/chat rate limit tests ---
 
-class TestChatRateLimit:
+class TestSessionChatRateLimit:
     @pytest.fixture()
     def client(self):
         limiter = Limiter(key_func=get_remote_address, default_limits=[])
-        app = _make_app(chat_router, limiter)
+        app = _make_app(sessions_router, limiter)
         app.dependency_overrides[get_current_user] = lambda: _make_mock_user()
         app.dependency_overrides[get_db] = lambda: _make_mock_db()
         yield TestClient(app), limiter
@@ -133,10 +160,16 @@ class TestChatRateLimit:
             key_func=get_remote_address,
             default_limits=["10/minute"],
         )
-        payload = {"repo_id": 1, "question": "what does this do?"}
-        with patch("app.api.routes.chat._verify_repo_access"), \
-             patch("app.api.routes.chat.stream_chat", return_value=iter(["hello"])):
-            response = tc.post("/chat", json=payload)
+        with patch("app.api.routes.sessions._get_session_or_404") as mock_sess, \
+             patch("app.api.routes.sessions.stream_chat", return_value=iter(["hello"])):
+            mock_session = MagicMock()
+            mock_session.repo_id = 1
+            mock_sess.return_value = mock_session
+            mock_repo = MagicMock()
+            mock_repo.status = "completed"
+            tc.app.dependency_overrides[get_db] = lambda: _make_mock_db()
+            with patch("app.api.routes.sessions.DBSession") as mock_db_cls:
+                response = tc.post("/sessions/1/chat", json={"question": "what does this do?"})
         assert response.status_code != 429
 
     def test_returns_429_after_limit_exceeded(self, client):
@@ -145,10 +178,15 @@ class TestChatRateLimit:
             key_func=get_remote_address,
             default_limits=["2/minute"],
         )
-        payload = {"repo_id": 1, "question": "what does this do?"}
-        with patch("app.api.routes.chat._verify_repo_access"), \
-             patch("app.api.routes.chat.stream_chat", return_value=iter(["hello"])):
-            responses = [tc.post("/chat", json=payload) for _ in range(3)]
+        with patch("app.api.routes.sessions._get_session_or_404") as mock_sess, \
+             patch("app.api.routes.sessions.stream_chat", return_value=iter(["hello"])):
+            mock_session = MagicMock()
+            mock_session.repo_id = 1
+            mock_sess.return_value = mock_session
+            responses = [
+                tc.post("/sessions/1/chat", json={"question": "what does this do?"})
+                for _ in range(3)
+            ]
         assert 429 in [r.status_code for r in responses]
 
     def test_rate_limit_resets_across_clients(self, client):
@@ -158,12 +196,15 @@ class TestChatRateLimit:
             key_func=get_forwarded_ip,
             default_limits=["1/minute"],
         )
-        payload = {"repo_id": 1, "question": "what does this do?"}
-        with patch("app.api.routes.chat._verify_repo_access"), \
-             patch("app.api.routes.chat.stream_chat", return_value=iter(["hello"])):
-            tc.post("/chat", json=payload, headers={"X-Forwarded-For": "1.2.3.4"})
-            r1 = tc.post("/chat", json=payload, headers={"X-Forwarded-For": "1.2.3.4"})
-            r2 = tc.post("/chat", json=payload, headers={"X-Forwarded-For": "5.6.7.8"})
+        with patch("app.api.routes.sessions._get_session_or_404") as mock_sess, \
+             patch("app.api.routes.sessions.stream_chat", return_value=iter(["hello"])):
+            mock_session = MagicMock()
+            mock_session.repo_id = 1
+            mock_sess.return_value = mock_session
+            payload = {"question": "what does this do?"}
+            tc.post("/sessions/1/chat", json=payload, headers={"X-Forwarded-For": "1.2.3.4"})
+            r1 = tc.post("/sessions/1/chat", json=payload, headers={"X-Forwarded-For": "1.2.3.4"})
+            r2 = tc.post("/sessions/1/chat", json=payload, headers={"X-Forwarded-For": "5.6.7.8"})
         assert r1.status_code == 429
         assert r2.status_code != 429
 
@@ -174,24 +215,40 @@ class TestRateLimitHeaders:
     @pytest.fixture()
     def client(self):
         limiter = Limiter(key_func=get_remote_address, default_limits=["5/minute"])
-        app = _make_app(analyze_router, limiter)
+        app = _make_app(sessions_router, limiter)
         app.dependency_overrides[get_current_user] = lambda: _make_mock_user()
         app.dependency_overrides[get_db] = lambda: _make_mock_db()
         yield TestClient(app)
         app.dependency_overrides.clear()
 
     def test_rate_limit_headers_present_on_limited_route(self, client):
-        with patch("app.api.routes.analyze.analyze_repo"):
-            response = client.post("/analyze?url=https://github.com/owner/repo")
-        assert "x-ratelimit-limit" in response.headers or response.status_code in (200, 429)
+        with patch("app.api.routes.sessions.session_svc.create_session") as mock_create, \
+             patch("app.api.routes.sessions.session_svc.run_ingestion"):
+            mock_session = MagicMock()
+            mock_session.id = 1
+            mock_session.created_at = "2026-01-01"
+            mock_repo = MagicMock()
+            mock_repo.id = 1
+            mock_repo.status = "pending"
+            mock_create.return_value = (mock_session, mock_repo)
+            response = client.post("/sessions?url=https://github.com/owner/repo")
+        assert "x-ratelimit-limit" in response.headers or response.status_code in (200, 201, 429)
 
     def test_429_response_is_json(self, client):
         client.app.state.limiter = Limiter(
             key_func=get_remote_address,
             default_limits=["1/minute"],
         )
-        with patch("app.api.routes.analyze.analyze_repo"):
-            client.post("/analyze?url=https://github.com/owner/repo")
-            response = client.post("/analyze?url=https://github.com/owner/repo")
+        with patch("app.api.routes.sessions.session_svc.create_session") as mock_create, \
+             patch("app.api.routes.sessions.session_svc.run_ingestion"):
+            mock_session = MagicMock()
+            mock_session.id = 1
+            mock_session.created_at = "2026-01-01"
+            mock_repo = MagicMock()
+            mock_repo.id = 1
+            mock_repo.status = "pending"
+            mock_create.return_value = (mock_session, mock_repo)
+            client.post("/sessions?url=https://github.com/owner/repo")
+            response = client.post("/sessions?url=https://github.com/owner/repo")
         if response.status_code == 429:
             assert response.headers["content-type"].startswith("application/json")

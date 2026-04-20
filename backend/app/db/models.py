@@ -23,11 +23,13 @@ class Users(Base):
     
 class Sessions(Base):
     __tablename__ = "sessions"
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), index=True)
+    title: Mapped[Optional[str]]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    last_active_at: Mapped[datetime] = mapped_column(server_default=func.now())
     
 class Messages(Base):
     __tablename__ = "messages"
@@ -42,7 +44,7 @@ class ShareableLinks(Base):
     __tablename__ = "shareable_links"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    repo_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     token: Mapped[str] = mapped_column(unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -59,13 +61,6 @@ class Repositories(Base):
     commit_hash: Mapped[Optional[str]]
     status: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    
-# Association table for many-to-many relationship between users and repositories
-class UserRepositories(Base):
-    __tablename__ = "user_repositories"
-    
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    repo_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"), primary_key=True)
     
 class Files(Base):
     __tablename__ = "files"
