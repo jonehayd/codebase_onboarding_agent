@@ -11,7 +11,9 @@ from app.config import settings
 from app.db.database import get_db
 from app.db.models import CodeChunks, Files, Messages, Repositories, Sessions, Users
 from app.services import sessions as session_svc
+from app.services.analyze import get_latest_commit_hash
 from app.services.chat import get_conversation_history, stream_chat
+from app.ingestion.github_client import fetch_repo
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 limiter = Limiter(key_func=get_remote_address)
@@ -183,6 +185,76 @@ def get_session_status(
     }
 
 
+# --- Freshness check ---
+
+@router.get("/{session_id}/freshness")
+def get_session_freshness(
+    session_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: DBSession = Depends(get_db),
+):
+    """Check whether the repository has new commits since the last ingest."""
+    session = _get_session_or_404(session_id, current_user.id, db)
+    repo = db.get(Repositories, session.repo_id)
+
+    try:
+        gh_repo = fetch_repo(repo.owner, repo.name, token=current_user.github_token)
+        latest_commit = get_latest_commit_hash(gh_repo)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to reach GitHub: {e}",
+        )
+
+    return {
+        "is_stale": repo.commit_hash != latest_commit,
+        "stored_commit": repo.commit_hash,
+        "latest_commit": latest_commit,
+    }
+
+
+# --- Re-ingestion ---
+
+@router.post("/{session_id}/reingest", status_code=status.HTTP_202_ACCEPTED)
+def reingest_session(
+    session_id: int,
+    background_tasks: BackgroundTasks,
+    current_user: Users = Depends(get_current_user),
+    db: DBSession = Depends(get_db),
+):
+    """Trigger a fresh ingestion of the session's repository.
+
+    Runs incrementally if commits have changed since last ingest, otherwise
+    runs a full re-ingest. Returns 409 if ingestion is already in progress.
+    """
+    session = _get_session_or_404(session_id, current_user.id, db)
+    repo = db.get(Repositories, session.repo_id)
+
+    if repo.status == "processing":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ingestion is already in progress for this repository.",
+        )
+
+    repo.status = "pending"
+    db.commit()
+
+    background_tasks.add_task(
+        session_svc.run_ingestion,
+        repo.id,
+        repo.owner,
+        repo.name,
+        db,
+        current_user.github_token,
+    )
+
+    return {
+        "session_id": session.id,
+        "repo_id": repo.id,
+        "status": "pending",
+    }
+
+
 # --- Chat ---
 
 @router.post("/{session_id}/chat")
@@ -250,6 +322,37 @@ def list_files(
 
     return {
         "session_id": session_id,
+        "files": [
+            {
+                "id": f.id,
+                "file_path": f.file_path,
+                "language": f.language,
+                "size_bytes": f.size_bytes,
+            }
+            for f in files
+        ],
+    }
+
+
+@router.get("/{session_id}/files/search")
+def search_files(
+    session_id: int,
+    q: str,
+    current_user: Users = Depends(get_current_user),
+    db: DBSession = Depends(get_db),
+):
+    """Search indexed files by path for the session's repository."""
+    session = _get_session_or_404(session_id, current_user.id, db)
+
+    files = db.execute(
+        select(Files)
+        .where(Files.repo_id == session.repo_id, Files.file_path.ilike(f"%{q}%"))
+        .order_by(Files.file_path.asc())
+    ).scalars().all()
+
+    return {
+        "session_id": session_id,
+        "query": q,
         "files": [
             {
                 "id": f.id,
