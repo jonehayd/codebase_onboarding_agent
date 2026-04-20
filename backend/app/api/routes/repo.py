@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
+from sqlalchemy import delete as sql_delete
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import secrets
 
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
-from app.db.models import CodeChunks, Files, Repositories, UserRepositories, Users
+from app.db.models import CodeChunks, Files, Messages, Messages, Repositories, Sessions, Sessions, UserRepositories, Users, ShareableLinks
 
 limiter = Limiter(key_func=get_remote_address)
 from app.config import settings
@@ -225,3 +227,193 @@ def get_file_content(
         "language": file.language,
         "content": content,
     }
+    
+@router.delete("/{repo_id}")
+def delete_repo(
+    repo_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete a repository and all associated data for the current user.
+    If other users have access to the same repo, only removes the association.
+    If the current user is the last one, deletes the repo and all its data.
+
+    Args:
+        repo_id (int): The ID of the repository.
+        current_user (Users): The authenticated user.
+        db (Session): The database session.
+
+    Returns:
+        dict: Confirmation message.
+
+    Raises:
+        HTTPException: If the repo is not found or not accessible.
+    """
+    
+    access = db.execute(
+        select(UserRepositories).where(
+            UserRepositories.user_id == current_user.id,
+            UserRepositories.repo_id == repo_id,
+        )
+    ).scalar_one_or_none()
+
+    if not access:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found",
+        )
+
+    # remove this user's association
+    db.execute(
+        sql_delete(UserRepositories).where(
+            UserRepositories.user_id == current_user.id,
+            UserRepositories.repo_id == repo_id,
+        )
+    )
+    db.commit()
+
+    # check if any other users still have access
+    remaining = db.execute(
+        select(UserRepositories).where(UserRepositories.repo_id == repo_id)
+    ).scalar_one_or_none()
+
+    # if no other users, delete the repo and all its data
+    if not remaining:
+        _delete_repo_data(repo_id, db)
+
+    return {"message": "Repository deleted successfully"}
+
+@router.post("/{repo_id}/share")
+def create_share_link(
+    repo_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Generate a shareable link token for a repository.
+
+    Args:
+        repo_id (int): The ID of the repository.
+        current_user (Users): The authenticated user.
+        db (Session): The database session.
+
+    Returns:
+        dict: The shareable token and full URL.
+
+    Raises:
+        HTTPException: If the repo is not found or not ready.
+    """
+    access = db.execute(
+        select(UserRepositories).where(
+            UserRepositories.user_id == current_user.id,
+            UserRepositories.repo_id == repo_id,
+        )
+    ).scalar_one_or_none()
+
+    if not access:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Repository not found",
+        )
+
+    repo = db.get(Repositories, repo_id)
+    if repo.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Repository must be fully ingested before sharing",
+        )
+
+    # return existing share link if one already exists
+    existing = db.execute(
+        select(ShareableLinks).where(
+            ShareableLinks.repo_id == repo_id,
+            ShareableLinks.created_by == current_user.id,
+        )
+    ).scalar_one_or_none()
+
+    if existing:
+        return {
+            "token": existing.token,
+            "url": f"{settings.frontend_url}/share/{existing.token}",
+        }
+
+    token = secrets.token_urlsafe(16)
+    link = ShareableLinks(
+        repo_id=repo_id,
+        created_by=current_user.id,
+        token=token,
+    )
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+
+    return {
+        "token": link.token,
+        "url": f"{settings.frontend_url}/share/{link.token}",
+    }
+
+
+@router.delete("/{repo_id}/share")
+def delete_share_link(
+    repo_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke a shareable link for a repository.
+
+    Args:
+        repo_id (int): The ID of the repository.
+        current_user (Users): The authenticated user.
+        db (Session): The database session.
+
+    Returns:
+        dict: Confirmation message.
+    """
+    db.execute(
+        sql_delete(ShareableLinks).where(
+            ShareableLinks.repo_id == repo_id,
+            ShareableLinks.created_by == current_user.id,
+        )
+    )
+    db.commit()
+    return {"message": "Share link revoked"}
+
+def _delete_repo_data(repo_id: int, db: Session) -> None:
+    """Delete a repo and all associated files, chunks, and embeddings.
+
+    Args:
+        repo_id (int): The ID of the repository.
+        db (Session): The database session.
+    """
+    # get all file ids for this repo
+    file_ids = db.execute(
+        select(Files.id).where(Files.repo_id == repo_id)
+    ).scalars().all()
+
+    if file_ids:
+        # delete chunks (embeddings are a column on chunks, no separate delete needed)
+        db.execute(
+            sql_delete(CodeChunks).where(CodeChunks.file_id.in_(file_ids))
+        )
+
+    # delete sessions and messages
+    session_ids = db.execute(
+        select(Sessions.id).where(Sessions.repo_id == repo_id)
+    ).scalars().all()
+
+    if session_ids:
+        db.execute(
+            sql_delete(Messages).where(Messages.session_id.in_(session_ids))
+        )
+        db.execute(
+            sql_delete(Sessions).where(Sessions.repo_id == repo_id)
+        )
+
+    # delete files
+    db.execute(sql_delete(Files).where(Files.repo_id == repo_id))
+
+    # delete repo
+    db.execute(
+        sql_delete(Repositories).where(Repositories.id == repo_id)
+    )
+
+    db.commit()

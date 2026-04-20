@@ -11,6 +11,7 @@ from app.api.routes.analyze import router as analyze_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.chat import router as chat_router
 from app.api.routes.repo import router as repo_router
+from app.api.routes.share import router as share_router
 from app.db.database import init_db
 
 # Identify and rate limit a client by IP address
@@ -44,6 +45,7 @@ app.include_router(auth_router)
 app.include_router(analyze_router)
 app.include_router(chat_router)
 app.include_router(repo_router)
+app.include_router(share_router)
 
 @app.get("/health")
 def health():
