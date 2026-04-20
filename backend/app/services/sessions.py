@@ -1,4 +1,5 @@
 import secrets
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import select
 from sqlalchemy import delete as sql_delete
@@ -85,6 +86,38 @@ def delete_session(session_id: int, user_id: int, db: DBSession) -> bool:
         _delete_repo_data(repo_id, db)
 
     return True
+
+
+def purge_stale_sessions(db: DBSession) -> int:
+    """Delete all sessions inactive for more than 7 days, cascading to messages,
+    share links, and orphaned repo data. Returns the number of sessions deleted.
+    """
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(weeks=1)
+
+    stale_ids = db.execute(
+        select(Sessions.id).where(Sessions.last_active_at < cutoff)
+    ).scalars().all()
+
+    if not stale_ids:
+        return 0
+
+    stale_repo_ids = db.execute(
+        select(Sessions.repo_id).where(Sessions.id.in_(stale_ids))
+    ).scalars().all()
+
+    db.execute(sql_delete(Messages).where(Messages.session_id.in_(stale_ids)))
+    db.execute(sql_delete(ShareableLinks).where(ShareableLinks.session_id.in_(stale_ids)))
+    db.execute(sql_delete(Sessions).where(Sessions.id.in_(stale_ids)))
+    db.commit()
+
+    for repo_id in set(stale_repo_ids):
+        remaining = db.execute(
+            select(Sessions).where(Sessions.repo_id == repo_id)
+        ).scalar_one_or_none()
+        if not remaining:
+            _delete_repo_data(repo_id, db)
+
+    return len(stale_ids)
 
 
 def _delete_repo_data(repo_id: int, db: DBSession) -> None:

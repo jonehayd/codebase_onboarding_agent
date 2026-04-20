@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,15 +11,28 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.api.routes.auth import router as auth_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.routes.share import router as share_router
-from app.db.database import init_db
+from app.db.database import init_db, SessionLocal
+from app.services.sessions import purge_stale_sessions
 
 # Identify and rate limit a client by IP address
 limiter = Limiter(key_func=get_remote_address)
 
+async def _session_cleanup_loop():
+    while True:
+        db = SessionLocal()
+        try:
+            await asyncio.to_thread(purge_stale_sessions, db)
+        finally:
+            db.close()
+        await asyncio.sleep(24 * 60 * 60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    cleanup_task = asyncio.create_task(_session_cleanup_loop())
     yield
+    cleanup_task.cancel()
     
 app = FastAPI(
     title="Codebase Onboarding Agent",

@@ -1,7 +1,7 @@
 from collections.abc import Generator
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update, func
 
 from app.db.models import Messages, Sessions
 from app.rag.retriever import retrieve_chunks
@@ -105,6 +105,9 @@ def stream_chat(
     else:
         session = get_or_create_session(user_id, repo_id, db)
     
+    db.execute(sql_update(Sessions).where(Sessions.id == session.id).values(last_active_at=func.now()))
+    db.commit()
+
     # save user message
     save_message(session.id, MessageRole.USER, question, db)
     
