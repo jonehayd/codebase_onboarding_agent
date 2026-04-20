@@ -17,9 +17,9 @@ def get_db():
         db.close()
      
 def init_db():
-    from app.db import models
+    # Ensure the pgvector extension exists at startup.
+    # Schema changes are managed by Alembic — run `alembic upgrade head` before starting.
     with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector")) # Enable pgvector extension
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
-    Base.metadata.create_all(bind=engine)
     

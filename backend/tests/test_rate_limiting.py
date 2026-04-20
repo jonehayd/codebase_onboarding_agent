@@ -43,6 +43,7 @@ def _make_mock_user():
 def _make_mock_db():
     db = MagicMock()
     db.execute.return_value.scalar_one_or_none.return_value = None
+    db.execute.return_value.scalar.return_value = 0
     return db
 
 

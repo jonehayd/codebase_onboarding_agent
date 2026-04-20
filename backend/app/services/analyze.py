@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -7,6 +8,8 @@ from app.ingestion.chunker import extract_chunks
 from app.ingestion.github_client import fetch_files, fetch_files_by_paths, fetch_repo
 from app.ingestion.parser import parse_file
 from app.rag.embeddings import embed_chunks
+
+logger = logging.getLogger(__name__)
 
 
 def get_repo_by_url(url: str, db: Session) -> Repositories | None:
@@ -154,6 +157,7 @@ def ingest_repo(repo_id: int, owner: str, name: str, db: Session, gh_repo=None) 
         gh_repo: Optional pre-fetched PyGitHub repository object.
     """
     try:
+        logger.info("Starting full ingestion for %s/%s (repo_id=%d)", owner, name, repo_id)
         update_repo_status(repo_id, RepoStatus.PROCESSING, db)
 
         if gh_repo is None:
@@ -163,9 +167,11 @@ def ingest_repo(repo_id: int, owner: str, name: str, db: Session, gh_repo=None) 
         files = fetch_files(gh_repo)
 
         if not files:
+            logger.warning("No files fetched for %s/%s; marking as failed", owner, name)
             update_repo_status(repo_id, RepoStatus.FAILED, db)
             return
 
+        logger.info("Ingesting %d file(s) for %s/%s", len(files), owner, name)
         _ingest_files(repo_id, files, db)
 
         repo = db.get(Repositories, repo_id)
@@ -173,9 +179,11 @@ def ingest_repo(repo_id: int, owner: str, name: str, db: Session, gh_repo=None) 
             repo.commit_hash = latest_hash
             repo.status = RepoStatus.COMPLETED
             db.commit()
+        logger.info("Ingestion complete for %s/%s at %s", owner, name, latest_hash[:7])
 
     except Exception as e:
         update_repo_status(repo_id, RepoStatus.FAILED, db)
+        logger.exception("Ingestion failed for %s/%s", owner, name)
         raise RuntimeError(f"Ingestion failed for repo {owner}/{name}: {e}") from e
 
 
@@ -194,13 +202,19 @@ def ingest_changed_files(
         db (Session): The database session.
     """
     try:
+        logger.info(
+            "Starting incremental ingestion for %s/%s (repo_id=%d, %s -> %s)",
+            owner, name, repo_id, old_sha[:7], new_sha[:7],
+        )
         update_repo_status(repo_id, RepoStatus.PROCESSING, db)
 
         changed_paths = get_changed_file_paths(gh_repo, old_sha, new_sha)
         if not changed_paths:
+            logger.info("No changed files for %s/%s; already up to date", owner, name)
             update_repo_status(repo_id, RepoStatus.COMPLETED, db)
             return
 
+        logger.info("Re-ingesting %d changed file(s) for %s/%s", len(changed_paths), owner, name)
         files = fetch_files_by_paths(gh_repo, changed_paths)
         _ingest_files(repo_id, files, db)
 
@@ -209,9 +223,11 @@ def ingest_changed_files(
             repo.commit_hash = new_sha
             repo.status = RepoStatus.COMPLETED
             db.commit()
+        logger.info("Incremental ingestion complete for %s/%s at %s", owner, name, new_sha[:7])
 
     except Exception as e:
         update_repo_status(repo_id, RepoStatus.FAILED, db)
+        logger.exception("Incremental ingestion failed for %s/%s", owner, name)
         raise RuntimeError(f"Incremental ingestion failed for repo {owner}/{name}: {e}") from e
 
 
@@ -236,16 +252,16 @@ def analyze_repo(user_id: int, owner: str, name: str, db: Session) -> None:
     existing = get_repo_by_url(url, db)
 
     if existing is None:
-        print(f"Repository {owner}/{name} not found in database. Starting full ingestion.")
+        logger.info("Repository %s/%s not found; starting full ingestion", owner, name)
         repo = create_repo_record(owner, name, db)
         ingest_repo(repo.id, owner, name, db, gh_repo=gh_repo)
         repo_id = repo.id
     elif existing.commit_hash != latest_hash:
-        print(f"Repository {owner}/{name} has a new commit. Starting incremental ingestion of changed files.")
+        logger.info("Repository %s/%s has new commits; starting incremental ingestion", owner, name)
         ingest_changed_files(existing.id, owner, name, gh_repo, existing.commit_hash, latest_hash, db)
         repo_id = existing.id
     else:
-        print(f"Repository {owner}/{name} is up to date. Skipping ingestion.")
+        logger.info("Repository %s/%s is up to date; skipping ingestion", owner, name)
         repo_id = existing.id
 
 

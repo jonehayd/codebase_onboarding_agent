@@ -1,13 +1,16 @@
+import logging
 from collections.abc import Generator
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update, func
 
 from app.db.models import Messages, Sessions
 from app.rag.retriever import retrieve_chunks
 from app.rag.prompt_builder import build_prompt
 from app.rag.llm_client import stream_responses, get_response
 from app.config import MessageRole
+
+logger = logging.getLogger(__name__)
 
 def get_or_create_session(user_id: int, repo_id: int, db: Session) -> Sessions:
     """Get an existing session for the user and repository, or create a new one if it doesn't exist.
@@ -37,24 +40,32 @@ def get_or_create_session(user_id: int, repo_id: int, db: Session) -> Sessions:
     db.refresh(session)
     return session
 
-def get_conversation_history(session_id: int, db: Session) -> list[dict]:
-    """Retrieve all messages for a session in chronological order.
+def get_conversation_history(
+    session_id: int,
+    db: Session,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """Retrieve messages for a session in chronological order with pagination.
 
-    Args:
-        session_id (int): The ID of the session.
-        db (Session): The database session.
-
-    Returns:
-        list[dict]: List of message dicts with role and content.
+    Returns a dict with messages, total count, limit, and offset.
     """
-    
+    base = select(Messages).where(Messages.session_id == session_id)
+
+    total = db.execute(
+        select(func.count()).select_from(base.subquery())
+    ).scalar()
+
     messages = db.execute(
-        select(Messages)
-        .where(Messages.session_id == session_id)
-        .order_by(Messages.created_at.asc())
+        base.order_by(Messages.created_at.asc()).limit(limit).offset(offset)
     ).scalars().all()
-    
-    return [{"role": message.role, "content": message.content} for message in messages]
+
+    return {
+        "messages": [{"role": m.role, "content": m.content, "created_at": m.created_at} for m in messages],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 def save_message(session_id: int, role: str, content: str, db: Session) -> Messages:
     """Save a message to the database.
@@ -104,14 +115,20 @@ def stream_chat(
         session = db.get(Sessions, session_id)
     else:
         session = get_or_create_session(user_id, repo_id, db)
-    
-    # save user message
+
+    logger.info(
+        "Chat request: session=%d repo=%d question_len=%d",
+        session.id, repo_id, len(question),
+    )
+
+    db.execute(sql_update(Sessions).where(Sessions.id == session.id).values(last_active_at=func.now()))
+    db.commit()
+
     save_message(session.id, MessageRole.USER, question, db)
-    
-    # Retrieve relevant chunks
+
     chunks = retrieve_chunks(question, repo_id, db, top_k)
-    
-    # Build prompt with retrieved context
+    logger.debug("Retrieved %d chunk(s) for session=%d", len(chunks), session.id)
+
     prompt = build_prompt(question, chunks)
     
     # Stream response and collect full text for saving

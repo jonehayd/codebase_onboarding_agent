@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     
     frontend_url: str = "http://localhost:3000"
 
+    # Session settings
+    max_sessions_per_user: int = 5
+
     # Repository processing settings
     max_file_size_bytes: int = 100_000 # Skip files larger than 100 KB
     max_files_per_repo: int = 10_000
