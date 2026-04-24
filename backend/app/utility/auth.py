@@ -3,6 +3,17 @@ from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from app.config import settings
 
+_token_blocklist: set[str] = set()
+
+
+def add_to_blocklist(token: str) -> None:
+    _token_blocklist.add(token)
+
+
+def is_blocklisted(token: str) -> bool:
+    return token in _token_blocklist
+
+
 def create_token(user_id: int) -> str:
     """Create a JWT token for the authenticated user.
 

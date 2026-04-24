@@ -5,7 +5,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.routes.auth import router
+from app.api.dependencies import get_current_user
 from app.db.database import get_db
+from app.db.models import Users
+from app.utility.auth import _token_blocklist
 
 # Build a minimal app with just the auth router for testing
 app = FastAPI()
@@ -305,3 +308,89 @@ class TestGithubCallbackErrors:
         response = tc.get("/auth/github/callback?code=bad")
         assert response.status_code == 400
         assert "some_error" in response.json()["detail"]
+
+
+# --- GET /auth/me ---
+
+def _make_mock_user():
+    user = MagicMock(spec=Users)
+    user.id = 1
+    user.username = "testuser"
+    user.email = "test@example.com"
+    user.has_repo_access = False
+    user.created_at = "2026-01-01T00:00:00"
+    return user
+
+
+@pytest.fixture()
+def authed_client():
+    mock_db = _make_db()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = lambda: _make_mock_user()
+    yield TestClient(app), mock_db
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_blocklist():
+    _token_blocklist.clear()
+    yield
+    _token_blocklist.clear()
+
+
+class TestGetMe:
+    def test_returns_200(self, authed_client):
+        tc, _ = authed_client
+        response = tc.get("/auth/me")
+        assert response.status_code == 200
+
+    def test_returns_user_id(self, authed_client):
+        tc, _ = authed_client
+        data = tc.get("/auth/me").json()
+        assert data["id"] == 1
+
+    def test_returns_username(self, authed_client):
+        tc, _ = authed_client
+        data = tc.get("/auth/me").json()
+        assert data["username"] == "testuser"
+
+    def test_returns_email(self, authed_client):
+        tc, _ = authed_client
+        data = tc.get("/auth/me").json()
+        assert data["email"] == "test@example.com"
+
+    def test_returns_has_repo_access(self, authed_client):
+        tc, _ = authed_client
+        data = tc.get("/auth/me").json()
+        assert "has_repo_access" in data
+
+    def test_returns_created_at(self, authed_client):
+        tc, _ = authed_client
+        data = tc.get("/auth/me").json()
+        assert "created_at" in data
+
+    def test_returns_401_without_token(self, authed_client):
+        tc, _ = authed_client
+        tc.app.dependency_overrides.pop(get_current_user)
+        response = tc.get("/auth/me")
+        assert response.status_code in (401, 403)
+
+
+# --- POST /auth/logout ---
+
+class TestLogout:
+    def test_returns_204(self, authed_client):
+        tc, _ = authed_client
+        response = tc.post("/auth/logout", headers={"Authorization": "Bearer sometoken"})
+        assert response.status_code == 204
+
+    def test_adds_token_to_blocklist(self, authed_client):
+        tc, _ = authed_client
+        tc.post("/auth/logout", headers={"Authorization": "Bearer mytoken"})
+        assert "mytoken" in _token_blocklist
+
+    def test_returns_401_without_token(self, authed_client):
+        tc, _ = authed_client
+        tc.app.dependency_overrides.pop(get_current_user)
+        response = tc.post("/auth/logout")
+        assert response.status_code in (401, 403)

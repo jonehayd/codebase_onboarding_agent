@@ -1,15 +1,20 @@
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.api.dependencies import get_current_user
+from app.api.schemas import UserOut
 from app.config import settings
 from app.db.database import get_db
 from app.db.models import Users
-from app.utility.auth import create_token
+from app.utility.auth import add_to_blocklist, create_token
+
+_bearer = HTTPBearer()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -93,6 +98,27 @@ def github_callback(request: Request,code: str, state: str | None = None, db: Se
         }
     }
     
+@router.get("/me", response_model=UserOut)
+def get_me(current_user: Users = Depends(get_current_user)):
+    """Return the currently authenticated user's profile."""
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "has_repo_access": current_user.has_repo_access,
+        "created_at": current_user.created_at,
+    }
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+    current_user: Users = Depends(get_current_user),
+):
+    """Revoke the current JWT so it cannot be used again."""
+    add_to_blocklist(credentials.credentials)
+
+
 def _exchange_code_for_token(code: str) -> str:
     """Exchange a GitHub OAuth code for an access token.
 
