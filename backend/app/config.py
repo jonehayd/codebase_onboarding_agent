@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     # Session settings
     max_sessions_per_user: int = 5
+    max_characters_per_question: int = 1000
+    max_characters_per_title: int = 100
 
     # Repository processing settings
     max_file_size_bytes: int = 100_000 # Skip files larger than 100 KB

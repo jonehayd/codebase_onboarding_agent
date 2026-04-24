@@ -8,6 +8,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.api.dependencies import get_current_user
+from app.api.schemas import UserOut
 from app.config import settings
 from app.db.database import get_db
 from app.db.models import Users
@@ -97,7 +98,7 @@ def github_callback(request: Request,code: str, state: str | None = None, db: Se
         }
     }
     
-@router.get("/me")
+@router.get("/me", response_model=UserOut)
 def get_me(current_user: Users = Depends(get_current_user)):
     """Return the currently authenticated user's profile."""
     return {

@@ -7,6 +7,7 @@ from app.api.routes.sessions import router
 from app.api.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import Sessions, Users
+from app.config import settings
 
 app = FastAPI()
 app.include_router(router)
@@ -83,4 +84,15 @@ class TestPatchSession:
     def test_returns_422_without_title(self, client):
         tc, _ = client
         response = tc.patch("/sessions/1", json={})
+        assert response.status_code == 422
+        
+    def test_returns_422_with_empty_title(self, client):
+        tc, _ = client
+        response = tc.patch("/sessions/1", json={"title": ""})
+        assert response.status_code == 422
+        
+    def test_returns_422_with_too_long_title(self, client):
+        tc, _ = client
+        long_title = "A" * (settings.max_characters_per_title + 1)
+        response = tc.patch("/sessions/1", json={"title": long_title})
         assert response.status_code == 422

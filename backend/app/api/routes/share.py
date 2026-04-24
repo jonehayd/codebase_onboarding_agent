@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.api.schemas import ShareInfoOut
+from app.config import settings
 from app.db.database import get_db
 from app.db.models import Repositories, Sessions, ShareableLinks
 from app.services.chat import stream_chat
@@ -15,10 +17,10 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 class ShareChatRequest(BaseModel):
-    question: str
+    question: str = Field(..., min_length=1, max_length=settings.max_characters_per_question)
 
 
-@router.get("/{token}")
+@router.get("/{token}", response_model=ShareInfoOut)
 def get_shared_repo(
     token: str,
     db: Session = Depends(get_db),

@@ -1,15 +1,29 @@
 import re
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import select, func
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.api.dependencies import get_current_user
+from app.api.schemas import (
+    CreateSessionOut,
+    FileContentOut,
+    FreshnessOut,
+    HistoryOut,
+    ListFilesOut,
+    ListSessionsOut,
+    PatchSessionOut,
+    ReingestOut,
+    SearchFilesOut,
+    SessionDetail,
+    SessionStatusOut,
+    ShareLinkOut,
+)
 from app.config import settings
 from app.db.database import get_db
 from app.db.models import CodeChunks, Files, Messages, Repositories, Sessions, Users
@@ -74,22 +88,22 @@ def _get_session_or_404(session_id: int, user_id: int, db: DBSession) -> Session
 
 
 class ChatRequest(BaseModel):
-    question: str
+    question: str = Field(..., min_length=1, max_length=settings.max_characters_per_question)
 
 
 class PatchSessionRequest(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=settings.max_characters_per_title)
 
 
 # --- Session CRUD ---
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=CreateSessionOut)
 @limiter.limit("3/day")
 def create_session(
     request: Request,
     url: str,
     background_tasks: BackgroundTasks,
-    title: str | None = None,
+    title: str | None = Query(default=None, max_length=settings.max_characters_per_title),
     current_user: Users = Depends(get_current_user),
     db: DBSession = Depends(get_db),
 ):
@@ -118,7 +132,7 @@ def create_session(
     }
 
 
-@router.get("")
+@router.get("", response_model=ListSessionsOut)
 def list_sessions(
     current_user: Users = Depends(get_current_user),
     db: DBSession = Depends(get_db),
@@ -149,7 +163,7 @@ def list_sessions(
     }
 
 
-@router.get("/{session_id}")
+@router.get("/{session_id}", response_model=SessionDetail)
 def get_session(
     session_id: int,
     current_user: Users = Depends(get_current_user),
@@ -189,7 +203,7 @@ def get_session(
     }
 
 
-@router.patch("/{session_id}")
+@router.patch("/{session_id}", response_model=PatchSessionOut)
 def update_session(
     session_id: int,
     body: PatchSessionRequest,
@@ -217,7 +231,7 @@ def delete_session(
 
 # --- Repo ingestion status ---
 
-@router.get("/{session_id}/status")
+@router.get("/{session_id}/status", response_model=SessionStatusOut)
 def get_session_status(
     session_id: int,
     current_user: Users = Depends(get_current_user),
@@ -236,7 +250,7 @@ def get_session_status(
 
 # --- Freshness check ---
 
-@router.get("/{session_id}/freshness")
+@router.get("/{session_id}/freshness", response_model=FreshnessOut)
 def get_session_freshness(
     session_id: int,
     current_user: Users = Depends(get_current_user),
@@ -264,7 +278,7 @@ def get_session_freshness(
 
 # --- Re-ingestion ---
 
-@router.post("/{session_id}/reingest", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{session_id}/reingest", status_code=status.HTTP_202_ACCEPTED, response_model=ReingestOut)
 def reingest_session(
     session_id: int,
     background_tasks: BackgroundTasks,
@@ -339,11 +353,11 @@ def chat(
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-@router.get("/{session_id}/history")
+@router.get("/{session_id}/history", response_model=HistoryOut)
 def get_history(
     session_id: int,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current_user: Users = Depends(get_current_user),
     db: DBSession = Depends(get_db),
 ):
@@ -354,7 +368,7 @@ def get_history(
 
 # --- Files ---
 
-@router.get("/{session_id}/files")
+@router.get("/{session_id}/files", response_model=ListFilesOut)
 def list_files(
     session_id: int,
     current_user: Users = Depends(get_current_user),
@@ -383,7 +397,7 @@ def list_files(
     }
 
 
-@router.get("/{session_id}/files/search")
+@router.get("/{session_id}/files/search", response_model=SearchFilesOut)
 def search_files(
     session_id: int,
     q: str,
@@ -414,7 +428,7 @@ def search_files(
     }
 
 
-@router.get("/{session_id}/files/{file_id}")
+@router.get("/{session_id}/files/{file_id}", response_model=FileContentOut)
 @limiter.limit("200/hour")
 def get_file_content(
     request: Request,
@@ -455,7 +469,7 @@ def get_file_content(
 
 # --- Share links ---
 
-@router.post("/{session_id}/share")
+@router.post("/{session_id}/share", response_model=ShareLinkOut)
 def create_share_link(
     session_id: int,
     current_user: Users = Depends(get_current_user),
