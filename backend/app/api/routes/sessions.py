@@ -28,6 +28,7 @@ from app.config import settings
 from app.db.database import get_db
 from app.db.models import CodeChunks, Files, Messages, Repositories, Sessions, Users
 from app.services import sessions as session_svc
+from app.services import progress_store
 from app.services.analyze import get_latest_commit_hash
 from app.services.chat import get_conversation_history, stream_chat
 from app.ingestion.github_client import fetch_repo
@@ -237,15 +238,72 @@ def get_session_status(
     current_user: Users = Depends(get_current_user),
     db: DBSession = Depends(get_db),
 ):
-    """Poll repository ingestion status for this session."""
+    """Poll repository ingestion status and live progress for this session."""
     session = _get_session_or_404(session_id, current_user.id, db)
     repo = db.get(Repositories, session.repo_id)
+
+    file_count = db.execute(
+        select(func.count()).select_from(Files).where(Files.repo_id == repo.id)
+    ).scalar()
+
+    vector_count = db.execute(
+        select(func.count())
+        .select_from(CodeChunks)
+        .join(Files, Files.id == CodeChunks.file_id)
+        .where(Files.repo_id == repo.id)
+    ).scalar()
+
+    prog = progress_store.get_progress(repo.id)
+
+    if prog:
+        stage = prog["stage"]
+        percent = prog["percent"]
+        files_total = prog["files_total"] or file_count
+        elapsed_seconds = prog["elapsed_seconds"]
+    else:
+        _stage_map = {
+            "pending": "fetching_files",
+            "processing": "parsing_code",
+            "completed": "completed",
+            "failed": "failed",
+        }
+        stage = _stage_map.get(repo.status, repo.status)
+        percent = 100 if repo.status == "completed" else 0
+        files_total = file_count
+        elapsed_seconds = None
+
     return {
         "session_id": session.id,
         "repo_id": repo.id,
         "status": repo.status,
+        "stage": stage,
+        "percent": percent,
+        "files_total": files_total,
+        "file_count": file_count,
+        "vector_count": vector_count,
+        "elapsed_seconds": elapsed_seconds,
         "commit_hash": repo.commit_hash,
     }
+
+
+@router.post("/{session_id}/cancel", status_code=status.HTTP_200_OK)
+def cancel_ingestion(
+    session_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: DBSession = Depends(get_db),
+):
+    """Request cancellation of an in-progress ingestion for this session."""
+    session = _get_session_or_404(session_id, current_user.id, db)
+    repo = db.get(Repositories, session.repo_id)
+
+    if repo.status not in ("pending", "processing"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No active ingestion to cancel.",
+        )
+
+    progress_store.request_cancel(repo.id)
+    return {"detail": "Cancellation requested."}
 
 
 # --- Freshness check ---
