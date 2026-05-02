@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getSessionDetail, getSessionStatus, cancelIngestion, retryIngestion } from "@api/sessions";
+import {
+  getSessionDetail,
+  getSessionStatus,
+  cancelIngestion,
+  retryIngestion,
+} from "@api/sessions";
 
 const STAGES = [
   { key: "fetching_files", label: "Fetching all files" },
@@ -18,7 +23,7 @@ function formatElapsed(seconds) {
 }
 
 function formatCount(n) {
-  if (n == null) return "—";
+  if (n == null) return "-";
   return n.toLocaleString();
 }
 
@@ -31,27 +36,41 @@ function CircularProgress({ percent, isComplete, isFailed }) {
   const strokeColor = isFailed
     ? "var(--color-error)"
     : isComplete
-    ? "var(--color-success)"
-    : "var(--color-text)";
+      ? "var(--color-success)"
+      : "var(--color-text)";
 
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: 144, height: 144 }}>
-      <svg width="144" height="144" viewBox="0 0 144 144" style={{ transform: "rotate(-90deg)" }}>
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: 144, height: 144 }}
+    >
+      <svg
+        width="144"
+        height="144"
+        viewBox="0 0 144 144"
+        style={{ transform: "rotate(-90deg)" }}
+      >
         <circle
-          cx="72" cy="72" r={r}
+          cx="72"
+          cy="72"
+          r={r}
           fill="none"
           stroke="var(--color-surface-high)"
           strokeWidth="10"
         />
         <circle
-          cx="72" cy="72" r={r}
+          cx="72"
+          cy="72"
+          r={r}
           fill="none"
           stroke={strokeColor}
           strokeWidth="10"
           strokeLinecap="butt"
           strokeDasharray={circ}
           strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 0.5s ease, stroke 0.3s ease" }}
+          style={{
+            transition: "stroke-dashoffset 0.5s ease, stroke 0.3s ease",
+          }}
         />
       </svg>
       <span
@@ -67,7 +86,13 @@ function CircularProgress({ percent, isComplete, isFailed }) {
 function CheckIcon() {
   return (
     <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-      <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M1 4L3.5 6.5L9 1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -100,8 +125,8 @@ function ChecklistItem({ stageKey, currentStage, isComplete }) {
           borderColor: isDone
             ? "var(--color-success)"
             : isActive
-            ? "var(--color-text)"
-            : "var(--color-surface-highest)",
+              ? "var(--color-text)"
+              : "var(--color-surface-highest)",
           backgroundColor: isDone ? "var(--color-success)" : "transparent",
         }}
       >
@@ -116,7 +141,9 @@ function ChecklistItem({ stageKey, currentStage, isComplete }) {
 function Stat({ label, value }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-xs uppercase tracking-widest text-text-subtle">{label}</span>
+      <span className="text-xs uppercase tracking-widest text-text-subtle">
+        {label}
+      </span>
       <span className="text-lg font-mono text-text">{value}</span>
     </div>
   );
@@ -184,7 +211,11 @@ export default function IngestionPage() {
       await retryIngestion(sessionId);
       setRetrying(false);
       // Resume polling
-      setStatus((prev) => prev ? { ...prev, status: "pending", stage: "fetching_files", percent: 0 } : prev);
+      setStatus((prev) =>
+        prev
+          ? { ...prev, status: "pending", stage: "fetching_files", percent: 0 }
+          : prev,
+      );
     } catch {
       setRetrying(false);
     }
@@ -205,33 +236,44 @@ export default function IngestionPage() {
   return (
     <div className="min-h-screen bg-base flex flex-col items-center justify-center p-8">
       <div className="w-full max-w-sm flex flex-col items-center gap-8">
-
         {/* Header */}
         <div className="text-center">
           <p className="text-xs uppercase tracking-widest text-text-subtle mb-1">
-            {isComplete ? "Ingestion complete" : isCancelled ? "Ingestion cancelled" : isFailed ? "Ingestion failed" : "Ingesting repository"}
+            {isComplete
+              ? "Ingestion complete"
+              : isCancelled
+                ? "Ingestion cancelled"
+                : isFailed
+                  ? "Ingestion failed"
+                  : "Ingesting repository"}
           </p>
-          <h1 className="text-xl font-semibold text-text font-mono">{repoLabel}</h1>
+          <h1 className="text-xl font-semibold text-text font-mono">
+            {repoLabel}
+          </h1>
         </div>
 
         {/* Circular progress */}
-        <CircularProgress percent={percent} isComplete={isComplete} isFailed={isFailed && !isCancelled} />
+        <CircularProgress
+          percent={percent}
+          isComplete={isComplete}
+          isFailed={isFailed && !isCancelled}
+        />
 
         {/* Stage label */}
         <p className="text-sm text-text-muted -mt-4">
           {isComplete
             ? "All files indexed successfully"
             : isCancelled
-            ? "Cancelled by user"
-            : isFailed
-            ? "An error occurred during ingestion"
-            : currentStage === "fetching_files"
-            ? "Fetching repository files…"
-            : currentStage === "parsing_code"
-            ? "Parsing source code…"
-            : currentStage === "generating_embeddings"
-            ? "Generating embeddings…"
-            : "Preparing…"}
+              ? "Cancelled by user"
+              : isFailed
+                ? "An error occurred during ingestion"
+                : currentStage === "fetching_files"
+                  ? "Fetching repository files…"
+                  : currentStage === "parsing_code"
+                    ? "Parsing source code…"
+                    : currentStage === "generating_embeddings"
+                      ? "Generating embeddings…"
+                      : "Preparing…"}
         </p>
 
         {/* Checklist */}
@@ -253,7 +295,10 @@ export default function IngestionPage() {
         <div className="w-full grid grid-cols-3 gap-4">
           <Stat label="Files" value={formatCount(status?.file_count)} />
           <Stat label="Vectors" value={formatCount(status?.vector_count)} />
-          <Stat label="Elapsed" value={formatElapsed(status?.elapsed_seconds)} />
+          <Stat
+            label="Elapsed"
+            value={formatElapsed(status?.elapsed_seconds)}
+          />
         </div>
 
         {/* Actions */}
