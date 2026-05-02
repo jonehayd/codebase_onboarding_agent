@@ -29,7 +29,7 @@ function GitHubButton({ href }) {
     <a
       href={href}
       className="inline-flex items-center gap-2 w-full justify-center px-5
-        bg-text text-black! font-medium text-sm rounded
+        bg-text text-black! font-medium text-sm
         hover:bg-text-muted transition-colors duration-150 py-5 m-4"
     >
       <GitHubIcon />
