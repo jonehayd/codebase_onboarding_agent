@@ -5,12 +5,33 @@ import { FaLink } from "react-icons/fa";
 export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
+  const [errors, setErrors] = useState({});
 
   if (!isOpen) return null;
 
+  function validateUrl(value) {
+    if (!value.trim()) return "This field cannot be empty";
+    try {
+      new URL(value.trim());
+      return null;
+    } catch {
+      return "Not a valid URL";
+    }
+  }
+
+  function handleUrlChange(e) {
+    setUrl(e.target.value);
+    if (errors.url) setErrors((prev) => ({ ...prev, url: null }));
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
-    if (!url.trim()) return;
+    const urlError = validateUrl(url);
+    if (urlError) {
+      setErrors({ url: urlError });
+      return;
+    }
+    setErrors({});
     onSubmit?.({ url: url.trim(), title: title.trim() || null });
   }
 
@@ -39,16 +60,21 @@ export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
             <label className="text-xs font-semibold text-text tracking-widest uppercase">
               GITHUB URL
             </label>
-            <div className="flex items-center border border-border p-2 gap-2 focus-within:border-text-subtle transition-colors">
+            <div
+              className={`flex items-center border p-2 gap-2 focus-within:border-text-subtle transition-colors ${errors.url ? "border-red-500" : "border-border"}`}
+            >
               <input
                 type="text"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={handleUrlChange}
                 placeholder="https://github.com/owner/repo"
                 className="flex-1 text-text placeholder-placeholder outline-none font-mono bg-transparent"
               />
               <FaLink className="text-text-subtle shrink-0" />
             </div>
+            {errors.url && (
+              <span className="text-xs text-red-500">{errors.url}</span>
+            )}
           </div>
 
           {/* Optional title field */}
@@ -75,7 +101,7 @@ export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
           {/* submit button */}
           <button
             type="submit"
-            className="w-full py-3 bg-text text-black! font-semibold text-sm tracking-widest uppercase cursor-pointer hover:bg-text-muted transition-colors duration-150 mt-1"
+            className="w-full py-3 bg-text text-black font-semibold text-sm tracking-widest uppercase cursor-pointer hover:bg-text-muted transition-colors duration-150 mt-1"
           >
             Create Session
           </button>
