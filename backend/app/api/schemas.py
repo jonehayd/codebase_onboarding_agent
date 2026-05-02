@@ -69,6 +69,12 @@ class SessionStatusOut(BaseModel):
     session_id: int
     repo_id: int
     status: str
+    stage: str
+    percent: int
+    files_total: int
+    file_count: int
+    vector_count: int
+    elapsed_seconds: Optional[int] = None
     commit_hash: Optional[str] = None
 
 
