@@ -42,7 +42,7 @@ export default function SessionEntry({
     <button
       onClick={onClick}
       className={`
-        w-full text-left px-3 py-3 rounded-lg border transition-colors duration-150
+        w-full text-left px-3 py-3 border transition-colors duration-150
         flex flex-col gap-2 cursor-pointer
         ${
           isActive
@@ -64,7 +64,7 @@ export default function SessionEntry({
             backgroundColor: `color-mix(in srgb, ${s.color} 10%, transparent)`,
             borderColor: `color-mix(in srgb, ${s.color} 40%, transparent)`,
           }}
-          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-0.5 rounded text-xs font-medium border"
+          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-0.5 text-xs font-medium border"
         >
           <span
             style={{ backgroundColor: s.color }}
