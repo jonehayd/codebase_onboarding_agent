@@ -6,7 +6,7 @@ const GITHUB_OAUTH_URL = `https://github.com/login/oauth/authorize?client_id=${i
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-color-base flex items-center justify-center px-4">
-      <Card className="w-full max-w-150 min-h-150 flex flex-col items-center justify-center gap-4 mx-auto text-center">
+      <Card className="w-full max-w-150 min-h-150 flex flex-col items-center justify-center gap-4 mx-auto text-center p-8">
         <RiTerminalBoxFill className="w-20 h-20 text-color-text m-4 p-2 border border-border bg-surface-high" />
         <div className="flex flex-col gap-2">
           <h1 className="text-4xl m-2">Codebase Onboarding Agent</h1>
