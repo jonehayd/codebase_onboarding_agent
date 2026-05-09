@@ -1,7 +1,7 @@
 import Card from "./Card";
 
 export default {
-  title: "Components/Card",
+  title: "Components/ui/Card",
   component: Card,
 };
 

@@ -1,7 +1,7 @@
 import NewSessionButton from "./NewSessionButton";
 
 export default {
-  title: "Components/NewSessionButton",
+  title: "Components/Session/NewSessionButton",
   component: NewSessionButton,
 };
 

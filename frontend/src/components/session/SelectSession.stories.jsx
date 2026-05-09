@@ -1,7 +1,7 @@
 import SelectSession from "./SelectSession";
 
 export default {
-  title: "Components/SelectSession",
+  title: "Components/Session/SelectSession",
   component: SelectSession,
 };
 

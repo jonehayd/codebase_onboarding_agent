@@ -157,7 +157,7 @@ const Panel = ({ children }) => (
 // --- Stories ---
 
 export default {
-  title: "UI/FileTree",
+  title: "Components/files/FileTree",
   component: FileTree,
   decorators: [
     (Story) => (
