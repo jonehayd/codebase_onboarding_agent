@@ -1,5 +1,5 @@
 import { useState } from "react";
-import FileView from "./FileView";
+import FileView from "./FileTreePanel";
 
 const FILES = [
   { id: 1, file_path: "app/__init__.py", language: "python", size_bytes: 0 },
@@ -45,7 +45,7 @@ const Panel = ({ children }) => (
 );
 
 export default {
-  title: "Components/Files/FileView",
+  title: "Components/Files/FileTreePanel",
   component: FileView,
 };
 
