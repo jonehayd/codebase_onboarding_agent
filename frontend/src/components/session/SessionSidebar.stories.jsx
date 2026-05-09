@@ -32,7 +32,7 @@ const SESSIONS = [
 ];
 
 export default {
-  title: "Components/Layout/SessionSidebar",
+  title: "Components/Session/SessionSidebar",
   component: SessionSidebar,
 };
 

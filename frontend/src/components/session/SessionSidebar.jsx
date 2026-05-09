@@ -1,6 +1,6 @@
 import Card from "@/components/ui/Card";
 import NewSessionButton from "@/components/session/NewSessionButton";
-import SessionEntry from "../session/SessionEntry";
+import SessionEntry from "./SessionEntry";
 
 export default function SessionSidebar({ sessions }) {
   return (
