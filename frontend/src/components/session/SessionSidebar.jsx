@@ -1,12 +1,24 @@
+import { LuChevronsLeft } from "react-icons/lu";
 import Card from "@/components/ui/Card";
 import NewSessionButton from "@/components/session/NewSessionButton";
 import SessionEntry from "./SessionEntry";
 
-export default function SessionSidebar({ sessions }) {
+export default function SessionSidebar({ sessions, onToggle }) {
   return (
-    <Card className="w-72 h-screen p-4 flex flex-col">
-      {/* New Sessions */}
-      <h2 className="text-sm font-light mb-4 uppercase">Sessions</h2>
+    <Card className="w-full h-full p-4 flex flex-col overflow-hidden bg-surface-elevated">
+      {/* Sessions header + collapse button */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-light uppercase">Sessions</h2>
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            className="p-1.5 rounded text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+            title="Collapse sidebar"
+          >
+            <LuChevronsLeft size={14} />
+          </button>
+        )}
+      </div>
       <NewSessionButton />
 
       {/* Sessions */}

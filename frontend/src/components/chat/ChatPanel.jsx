@@ -31,7 +31,7 @@ export default function ChatPanel({ messages, onSend, isLoading }) {
       </div>
 
       {/* sticky input */}
-      <div className="sticky bottom-0">
+      <div className="sticky bottom-10">
         <div className="max-w-3xl mx-auto">
           <ChatInput onSend={onSend} />
         </div>

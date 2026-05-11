@@ -41,6 +41,7 @@ export default function SessionEntry({
   return (
     <button
       onClick={onClick}
+      title={title}
       className={`
         w-full text-left px-3 py-3 border transition-colors duration-150
         flex flex-col gap-2 cursor-pointer

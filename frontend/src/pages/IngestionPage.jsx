@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   getSessionDetail,
   getSessionStatus,
@@ -149,12 +149,9 @@ function Stat({ label, value }) {
   );
 }
 
-// --- Main page ---
+// --- Main view (embeddable — accepts sessionId as a prop) ---
 
-export default function IngestionPage() {
-  const { sessionId } = useParams();
-  const navigate = useNavigate();
-
+export function IngestionView({ sessionId }) {
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState(null);
   const [cancelling, setCancelling] = useState(false);
@@ -335,4 +332,11 @@ export default function IngestionPage() {
       `}</style>
     </div>
   );
+}
+
+// --- Router page wrapper ---
+
+export default function IngestionPage() {
+  const { sessionId } = useParams();
+  return <IngestionView sessionId={sessionId} />;
 }

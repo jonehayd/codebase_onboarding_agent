@@ -124,7 +124,7 @@ export default function FileView({
 
       {/* Code area */}
       <div className="flex-1 overflow-auto">
-        <div className="flex min-w-max">
+        <div className="flex min-w-max min-h-full">
           {/* Line numbers */}
           <div
             className="select-none text-right pr-4 pl-4 py-4 text-xs font-mono
