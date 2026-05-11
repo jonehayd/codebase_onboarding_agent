@@ -23,7 +23,7 @@ export default function ChatInput({ onSend }) {
   };
 
   return (
-    <div className="flex flex-col gap-1 bg-surface-raised border-t border-border p-3">
+    <div className="flex flex-col bg-surface-raised border-t border-border p-3">
       <div
         className={`flex items-center border transition-colors duration-150 ${
           hasError
