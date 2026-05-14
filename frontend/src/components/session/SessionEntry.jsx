@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { LuMoreHorizontal, LuPencil, LuTrash2 } from "react-icons/lu";
+import { LuEllipsis, LuPencil, LuTrash2 } from "react-icons/lu";
 
 const STATUS_STYLES = {
   completed: {
@@ -149,7 +149,7 @@ export default function SessionEntry({
             className="shrink-0 p-0.5 opacity-0 group-hover:opacity-100 text-text-muted hover:text-text transition-opacity rounded"
             title="More options"
           >
-            <LuMoreHorizontal size={14} />
+            <LuEllipsis size={14} />
           </button>
 
           {/* status badge */}
