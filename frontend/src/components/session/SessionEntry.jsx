@@ -7,6 +7,10 @@ const STATUS_STYLES = {
     color: "#f59e0b",
     label: "Processing",
   },
+  pending: {
+    color: "#f59e0b",
+    label: "Processing",
+  },
   failed: {
     color: "#ef4444",
     label: "Failed",

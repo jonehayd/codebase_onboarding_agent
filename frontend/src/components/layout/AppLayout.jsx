@@ -45,6 +45,7 @@ export default function AppLayout({
   getFileContent,
   onSelectSession,
   onCreateSession,
+  onIngestionComplete,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fileTreeOpen, setFileTreeOpen] = useState(true);
@@ -123,7 +124,7 @@ export default function AppLayout({
           {/* ── Main view ── */}
           <div className="flex-1 min-w-0 overflow-hidden">
             {activeSession && PROCESSING_STATUSES.has(activeSession.status) ? (
-              <IngestionView sessionId={activeSession.id} />
+              <IngestionView sessionId={activeSession.id} onComplete={onIngestionComplete} />
             ) : (
               <ChatPanel
                 messages={messages}

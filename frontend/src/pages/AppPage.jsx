@@ -76,13 +76,19 @@ export default function AppPage() {
       id: raw.session_id,
       title: raw.title ?? `${raw.owner}/${raw.name}`,
       repoName: `${raw.owner}/${raw.name}`,
-      status: raw.status,
+      status: raw.status ?? "pending",
       lastActive: raw.created_at,
     };
     setSessions((prev) => [session, ...prev]);
     setSelectedId(session.id);
     return session;
   }, []);
+
+  const handleIngestionComplete = useCallback(() => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === selectedId ? { ...s, status: "completed" } : s)),
+    );
+  }, [selectedId]);
 
   const handleSend = useCallback(
     (question) => {
@@ -153,6 +159,7 @@ export default function AppPage() {
       getFileContent={getFileContent}
       onSelectSession={handleSelectSession}
       onCreateSession={handleCreateSession}
+      onIngestionComplete={handleIngestionComplete}
     />
   );
 }

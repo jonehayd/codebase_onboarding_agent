@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   getSession,
@@ -72,13 +72,33 @@ function CircularProgress({ percent, isComplete, isFailed }) {
             transition: "stroke-dashoffset 0.5s ease, stroke 0.3s ease",
           }}
         />
+        {/* Checkmark draws in after the ring fills — counter-rotate so it renders upright */}
+        {isComplete && (
+          <g style={{ transform: "rotate(90deg)", transformOrigin: "72px 72px" }}>
+            <path
+              d="M44 74 L62 92 L100 54"
+              fill="none"
+              stroke="var(--color-success)"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                strokeDasharray: 80,
+                strokeDashoffset: 80,
+                animation: "drawCheck 0.5s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards",
+              }}
+            />
+          </g>
+        )}
       </svg>
-      <span
-        className="absolute text-2xl font-semibold"
-        style={{ color: strokeColor, transition: "color 0.3s ease" }}
-      >
-        {percent}%
-      </span>
+      {!isComplete && (
+        <span
+          className="absolute text-2xl font-semibold"
+          style={{ color: strokeColor, transition: "color 0.3s ease" }}
+        >
+          {percent}%
+        </span>
+      )}
     </div>
   );
 }
@@ -151,12 +171,13 @@ function Stat({ label, value }) {
 
 // --- Main view (embeddable — accepts sessionId as a prop) ---
 
-export function IngestionView({ sessionId }) {
+export function IngestionView({ sessionId, onComplete }) {
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+  const completedRef = useRef(false);
 
   // Load repo name once
   useEffect(() => {
@@ -167,6 +188,7 @@ export function IngestionView({ sessionId }) {
 
   // Poll ingestion status
   useEffect(() => {
+    completedRef.current = false;
     let active = true;
     let intervalId;
 
@@ -178,6 +200,11 @@ export function IngestionView({ sessionId }) {
         setFetchError(null);
         if (!ACTIVE_STATUSES.has(data.status)) {
           clearInterval(intervalId);
+          if (data.status === "completed" && !completedRef.current) {
+            completedRef.current = true;
+            // Delay so the checkmark animation finishes before transitioning
+            setTimeout(() => onComplete?.(), 1500);
+          }
         }
       } catch (e) {
         if (active) setFetchError(e.message);
@@ -328,6 +355,9 @@ export function IngestionView({ sessionId }) {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
+        }
+        @keyframes drawCheck {
+          to { stroke-dashoffset: 0; }
         }
       `}</style>
     </div>
