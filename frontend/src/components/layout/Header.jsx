@@ -10,10 +10,18 @@ export default function Header({ activeSession }) {
   };
 
   return (
-    <header className="w-full h-16 bg-color-surface flex items-center border-b border-color-border px-4">
-      <h1 className="text-xl font-semibold text-color-text">
+    <header className="w-full h-16 bg-color-surface flex items-center border-b border-color-border px-4 gap-3">
+      <h1 className="text-xl font-semibold text-color-text shrink-0">
         CODEBASE_ONBOARDING_AGENT
       </h1>
+      {activeSession?.repoName && (
+        <>
+          <span className="text-text-subtle select-none">/</span>
+          <span className="text-sm font-mono text-text-muted truncate">
+            {activeSession.repoName}
+          </span>
+        </>
+      )}
       <div className="ml-auto flex items-center gap-2">
         <ShareButton activeSession={activeSession} />
         <button
