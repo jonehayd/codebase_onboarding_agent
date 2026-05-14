@@ -85,18 +85,8 @@ def github_callback(request: Request,code: str, state: str | None = None, db: Se
 
     jwt_token = create_token(user.id)
 
-    # In production redirect to frontend
-    # For testing return json
-    return {
-        "access_token": jwt_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "has_repo_access": user.has_repo_access,
-        }
-    }
+    redirect_url = f"{settings.frontend_url}/auth/callback?token={jwt_token}"
+    return RedirectResponse(url=redirect_url, status_code=302)
     
 @router.get("/me", response_model=UserOut)
 def get_me(current_user: Users = Depends(get_current_user)):

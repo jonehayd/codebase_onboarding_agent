@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import {
-  getSessionDetail,
+  getSession,
   getSessionStatus,
   cancelIngestion,
-  retryIngestion,
+  reingestSession,
 } from "@api/sessions";
 
 const STAGES = [
@@ -160,7 +160,7 @@ export function IngestionView({ sessionId }) {
 
   // Load repo name once
   useEffect(() => {
-    getSessionDetail(sessionId)
+    getSession(sessionId)
       .then(setSession)
       .catch(() => {});
   }, [sessionId]);
@@ -205,7 +205,7 @@ export function IngestionView({ sessionId }) {
   const handleRetry = useCallback(async () => {
     setRetrying(true);
     try {
-      await retryIngestion(sessionId);
+      await reingestSession(sessionId);
       setRetrying(false);
       // Resume polling
       setStatus((prev) =>

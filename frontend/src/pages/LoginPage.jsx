@@ -1,7 +1,6 @@
 import { RiTerminalBoxFill } from "react-icons/ri";
 import Card from "@components/ui/Card";
-
-const GITHUB_OAUTH_URL = `https://github.com/login/oauth/authorize?client_id=${import.meta.env.VITE_GITHUB_CLIENT_ID}&scope=repo,read:user`;
+import { getGitHubOAuthURL } from "@api/auth";
 
 export default function LoginPage() {
   return (
@@ -18,7 +17,7 @@ export default function LoginPage() {
 
         <hr className="w-full border-none h-px bg-color-border" />
 
-        <GitHubButton href={GITHUB_OAUTH_URL} />
+        <GitHubButton href={getGitHubOAuthURL()} />
       </Card>
     </div>
   );
