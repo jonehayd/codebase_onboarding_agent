@@ -4,7 +4,7 @@ from collections.abc import Generator
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update as sql_update, func
 
-from app.db.models import Messages, Sessions
+from app.db.models import Messages, Repositories, Sessions
 from app.rag.retriever import retrieve_chunks
 from app.rag.prompt_builder import build_prompt
 from app.rag.llm_client import stream_responses, get_response
@@ -129,7 +129,9 @@ def stream_chat(
     chunks = retrieve_chunks(question, repo_id, db, top_k)
     logger.debug("Retrieved %d chunk(s) for session=%d", len(chunks), session.id)
 
-    system, user_message = build_prompt(question, chunks)
+    repo = db.get(Repositories, repo_id)
+    repo_name = f"{repo.owner}/{repo.name}" if repo else None
+    system, user_message = build_prompt(question, chunks, repo_name=repo_name)
 
     # Stream response and collect full text for saving
     full_response = []
@@ -164,7 +166,9 @@ def chat(
     save_message(session.id, MessageRole.USER, question, db)
 
     chunks = retrieve_chunks(question, repo_id, db, top_k=top_k)
-    system, user_message = build_prompt(question, chunks)
+    repo = db.get(Repositories, repo_id)
+    repo_name = f"{repo.owner}/{repo.name}" if repo else None
+    system, user_message = build_prompt(question, chunks, repo_name=repo_name)
     response = get_response(system, user_message)
 
     save_message(session.id, MessageRole.ASSISTANT, response, db)

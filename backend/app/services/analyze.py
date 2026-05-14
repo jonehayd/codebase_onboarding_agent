@@ -100,6 +100,31 @@ def get_changed_file_paths(gh_repo, old_sha: str, new_sha: str) -> set[str]:
     return {f.filename for f in comparison.files if f.status in ("added", "modified")}
 
 
+_PLAIN_TEXT_CHUNK_LINES = 80
+
+
+def _plain_text_chunks(file: dict) -> list[dict]:
+    """Split a plain-text / unsupported file into fixed-size line chunks.
+
+    Used as a fallback for file types without a tree-sitter parser (e.g. Markdown).
+    """
+    lines = file["content"].split("\n")
+    chunks = []
+    for i in range(0, len(lines), _PLAIN_TEXT_CHUNK_LINES):
+        slice_ = lines[i : i + _PLAIN_TEXT_CHUNK_LINES]
+        content = "\n".join(slice_).strip()
+        if content:
+            chunks.append({
+                "file_path": file["path"],
+                "chunk_type": "text",
+                "name": None,
+                "content": content,
+                "start_line": i + 1,
+                "end_line": i + len(slice_),
+            })
+    return chunks
+
+
 def _ingest_files(repo_id: int, files: list[dict], db: Session) -> None:
     """Parse then embed a list of files, tracking progress and honouring cancel requests.
 
@@ -124,8 +149,9 @@ def _ingest_files(repo_id: int, files: list[dict], db: Session) -> None:
 
         parsed = parse_file(file["path"], file["content"])
         if parsed is None:
-            continue
-        chunks = extract_chunks(parsed)
+            chunks = _plain_text_chunks(file)
+        else:
+            chunks = extract_chunks(parsed)
         if chunks:
             parsed_items.append((file, chunks))
 

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import AppPage from "./pages/AppPage";
+import SharePage from "./pages/SharePage";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
@@ -23,6 +24,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/share/:token" element={<SharePage />} />
       </Routes>
     </BrowserRouter>
   );

@@ -82,7 +82,13 @@ export function streamSSE(url, options, onChunk, onDone, onError) {
             onDone?.();
             return;
           }
-          onChunk?.(data);
+          let chunk;
+          try {
+            chunk = JSON.parse(data);
+          } catch {
+            chunk = data;
+          }
+          onChunk?.(chunk);
         }
       }
 

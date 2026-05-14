@@ -12,6 +12,44 @@ export async function getSharedRepo(token) {
 }
 
 /**
+ * Returns conversation history for a shared session — no auth required.
+ * GET /share/{token}/history
+ *
+ * @param {string} token
+ * @returns {Promise<{ messages: Array, total: number }>}
+ */
+export async function getSharedHistory(token, { limit = 50, offset = 0 } = {}) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return apiJSON(`/share/${token}/history?${params}`, { headers: {} });
+}
+
+/**
+ * Returns the indexed files for a shared session's repo — no auth required.
+ * GET /share/{token}/files
+ *
+ * @param {string} token
+ * @returns {Promise<{ session_id: number, files: FileEntry[] }>}
+ */
+export async function listSharedFiles(token) {
+  return apiJSON(`/share/${token}/files`, { headers: {} });
+}
+
+/**
+ * Fetches the source content of a single file via share link — no auth required.
+ * GET /share/{token}/files/{file_id}
+ *
+ * @param {string} token
+ * @param {number} fileId
+ * @returns {Promise<{ id: number, file_path: string, language: string, content: string }>}
+ */
+export async function getSharedFileContent(token, fileId) {
+  return apiJSON(`/share/${token}/files/${fileId}`, { headers: {} });
+}
+
+/**
  * Streams a chat response via a public share link — no auth required.
  * POST /share/{token}/chat
  *

@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
+import ShareButton from "./ShareButton";
 
-export default function Header() {
+export default function Header({ activeSession }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -13,12 +14,15 @@ export default function Header() {
       <h1 className="text-xl font-semibold text-color-text">
         CODEBASE_ONBOARDING_AGENT
       </h1>
-      <button
-        onClick={handleLogout}
-        className="ml-auto px-4 py-2 bg-text text-black font-medium text-sm rounded cursor-pointer hover:bg-text-muted transition-colors duration-150"
-      >
-        LOGOUT
-      </button>
+      <div className="ml-auto flex items-center gap-2">
+        <ShareButton activeSession={activeSession} />
+        <button
+          onClick={handleLogout}
+          className="px-4 py-2 bg-text text-black font-medium text-sm rounded cursor-pointer hover:bg-text-muted transition-colors duration-150"
+        >
+          LOGOUT
+        </button>
+      </div>
     </header>
   );
 }

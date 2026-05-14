@@ -42,18 +42,24 @@ def github_login(private: bool = False):
 
 @router.get("/github/callback")
 @limiter.limit("20/hour")
-def github_callback(request: Request,code: str, state: str | None = None, db: Session = Depends(get_db)):
+def github_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db),
+):
     """Handles the callback from GitHub after user authorization.
 
     Args:
-        code (str): The authorization code returned by GitHub.
+        code (str | None): The authorization code returned by GitHub.
         state (str | None): The state parameter to determine if repo access was requested.
+        error (str | None): Set by GitHub when the user cancels or denies access.
         db (Session): The database session.
-    
-    Returns:
-        dict: A JSON response containing the JWT token and user info.
     """
-    
+    if error or not code:
+        return RedirectResponse(url=settings.frontend_url, status_code=302)
+
     github_token = _exchange_code_for_token(code)
     profile = _fetch_github_profile(github_token)
     email = _fetch_github_email(github_token)

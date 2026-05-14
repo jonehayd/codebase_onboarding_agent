@@ -1,3 +1,4 @@
+import json
 import re
 from urllib.parse import urlparse
 
@@ -99,7 +100,7 @@ class PatchSessionRequest(BaseModel):
 # --- Session CRUD ---
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=CreateSessionOut)
-@limiter.limit("3/day")
+@limiter.limit("20/day")
 def create_session(
     request: Request,
     url: str,
@@ -405,7 +406,7 @@ def chat(
             db=db,
             session_id=session_id,
         ):
-            yield f"data: {token}\n\n"
+            yield f"data: {json.dumps(token)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

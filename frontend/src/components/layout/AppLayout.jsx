@@ -76,7 +76,7 @@ export default function AppLayout({
   return (
     <>
       <div className="flex flex-col h-screen bg-surface overflow-hidden">
-        <Header />
+        <Header activeSession={activeSession} />
 
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* ── Session Sidebar ── */}
@@ -128,7 +128,10 @@ export default function AppLayout({
           {/* ── Main view ── */}
           <div className="flex-1 min-w-0 overflow-hidden">
             {activeSession && PROCESSING_STATUSES.has(activeSession.status) ? (
-              <IngestionView sessionId={activeSession.id} onComplete={onIngestionComplete} />
+              <IngestionView
+                sessionId={activeSession.id}
+                onComplete={onIngestionComplete}
+              />
             ) : (
               <ChatPanel
                 messages={messages}

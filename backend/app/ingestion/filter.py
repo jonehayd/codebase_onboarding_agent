@@ -7,7 +7,7 @@ INCLUDED_EXTENSIONS = {
     ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go",
     ".c", ".cpp", ".h", ".cs", ".rb", ".rs", ".swift",
     ".css", ".html", ".json", ".yaml", ".yml", ".toml",
-    ".sql", ".sh", ".env.example"
+    ".sql", ".sh", ".env.example", ".md", ".mdx", ".txt",
 }
 
 EXCLUDED_FILES = {

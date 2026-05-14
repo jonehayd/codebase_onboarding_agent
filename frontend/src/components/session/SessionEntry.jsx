@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { LuEllipsis, LuPencil, LuTrash2 } from "react-icons/lu";
 
 const STATUS_STYLES = {
@@ -48,6 +49,7 @@ export default function SessionEntry({
   const s = STATUS_STYLES[status] ?? STATUS_STYLES.processing;
 
   const [dropdownPos, setDropdownPos] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(title);
   const menuButtonRef = useRef(null);
@@ -95,6 +97,12 @@ export default function SessionEntry({
   const handleDeleteClick = (e) => {
     e.stopPropagation();
     setDropdownPos(null);
+    setConfirmDelete(true);
+  };
+
+  const handleConfirmDelete = (e) => {
+    e.stopPropagation();
+    setConfirmDelete(false);
     onDelete?.();
   };
 
@@ -151,8 +159,19 @@ export default function SessionEntry({
           >
             <LuEllipsis size={14} />
           </button>
+        </div>
 
-          {/* status badge */}
+        {/* repo name */}
+        <span className="text-xs text-text-subtle font-mono truncate">
+          {repoName}
+        </span>
+
+        {/* bottom row: timestamp + status badge */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-text-subtle">
+            Last active {formatTimestamp(lastActive)}
+          </span>
+
           <span
             style={{
               color: s.color,
@@ -168,17 +187,49 @@ export default function SessionEntry({
             {s.label}
           </span>
         </div>
-
-        {/* repo name */}
-        <span className="text-xs text-text-subtle font-mono truncate">
-          {repoName}
-        </span>
-
-        {/* timestamp */}
-        <span className="text-xs text-text-subtle">
-          Last active {formatTimestamp(lastActive)}
-        </span>
       </div>
+
+      {/* Delete confirmation modal */}
+      {confirmDelete &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirmDelete(false);
+            }}
+          >
+            <div
+              className="bg-surface-raised border border-border w-full max-w-sm mx-4 p-6 flex flex-col gap-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-col gap-1">
+                <h2 className="text-base font-semibold text-text">
+                  Delete session?
+                </h2>
+                <p className="text-sm text-text-muted">
+                  <span className="font-medium text-text">{title}</span> will be
+                  permanently deleted. This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-4 py-2 text-sm font-medium text-text-muted border border-border hover:text-text hover:border-text-subtle transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* fixed-position dropdown — escapes overflow:hidden parents */}
       {dropdownPos && (

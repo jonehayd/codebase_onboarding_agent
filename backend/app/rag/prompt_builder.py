@@ -14,7 +14,7 @@ Be direct. Reference specific files and line numbers naturally inline \
 """
 
 
-def build_prompt(query: str, chunks: list[dict]) -> tuple[str, str]:
+def build_prompt(query: str, chunks: list[dict], repo_name: str | None = None) -> tuple[str, str]:
     """Return (system_prompt, user_message) for the Anthropic API.
 
     Keeping system instructions in the `system` parameter lets the API
@@ -23,13 +23,17 @@ def build_prompt(query: str, chunks: list[dict]) -> tuple[str, str]:
     Args:
         query (str): The user's question about the codebase.
         chunks (list[dict]): Retrieved code chunks from the retriever.
+        repo_name (str | None): The repository name (e.g. "owner/repo").
 
     Returns:
         tuple[str, str]: (system_prompt, user_message)
     """
+    system = _SYSTEM_PROMPT
+    if repo_name:
+        system = f"{_SYSTEM_PROMPT}\n\nThe repository you are assisting with is: **{repo_name}**."
     context = _build_context(chunks)
     user_message = f"{context}\n\n{query}"
-    return _SYSTEM_PROMPT, user_message
+    return system, user_message
 
 
 def _build_context(chunks: list[dict]) -> str:

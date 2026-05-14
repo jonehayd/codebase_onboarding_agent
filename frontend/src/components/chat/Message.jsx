@@ -27,7 +27,7 @@ export default function Message({ role, content, createdAt }) {
         className={`max-w-[90%] flex flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}
       >
         <div
-          className={`px-3 py-2 rounded-lg text-sm
+          className={`px-3 py-2 rounded-lg text-sm select-text
           ${
             isUser
               ? "bg-surface-raised text-text leading-relaxed"

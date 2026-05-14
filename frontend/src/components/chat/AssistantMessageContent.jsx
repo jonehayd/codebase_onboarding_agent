@@ -6,7 +6,7 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export default function AssistantMessageContent({ content }) {
   return (
-    <div className="text-sm text-text leading-relaxed">
+    <div className="text-sm text-text leading-relaxed select-text">
       <ReactMarkdown
         components={{
           // strip the <pre> wrapper so code handles its own container

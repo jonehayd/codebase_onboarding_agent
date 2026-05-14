@@ -74,7 +74,9 @@ function CircularProgress({ percent, isComplete, isFailed }) {
         />
         {/* Checkmark draws in after the ring fills — counter-rotate so it renders upright */}
         {isComplete && (
-          <g style={{ transform: "rotate(90deg)", transformOrigin: "72px 72px" }}>
+          <g
+            style={{ transform: "rotate(90deg)", transformOrigin: "72px 72px" }}
+          >
             <path
               d="M44 74 L62 92 L100 54"
               fill="none"
@@ -85,7 +87,8 @@ function CircularProgress({ percent, isComplete, isFailed }) {
               style={{
                 strokeDasharray: 80,
                 strokeDashoffset: 80,
-                animation: "drawCheck 0.5s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards",
+                animation:
+                  "drawCheck 0.5s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards",
               }}
             />
           </g>
@@ -177,6 +180,7 @@ export function IngestionView({ sessionId, onComplete }) {
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+  const [retryKey, setRetryKey] = useState(0);
   const completedRef = useRef(false);
 
   // Load repo name once
@@ -189,6 +193,7 @@ export function IngestionView({ sessionId, onComplete }) {
   // Poll ingestion status
   useEffect(() => {
     completedRef.current = false;
+    setStatus(null);
     let active = true;
     let intervalId;
 
@@ -218,7 +223,7 @@ export function IngestionView({ sessionId, onComplete }) {
       active = false;
       clearInterval(intervalId);
     };
-  }, [sessionId]);
+  }, [sessionId, retryKey]);
 
   const handleCancel = useCallback(async () => {
     setCancelling(true);
@@ -234,12 +239,7 @@ export function IngestionView({ sessionId, onComplete }) {
     try {
       await reingestSession(sessionId);
       setRetrying(false);
-      // Resume polling
-      setStatus((prev) =>
-        prev
-          ? { ...prev, status: "pending", stage: "fetching_files", percent: 0 }
-          : prev,
-      );
+      setRetryKey((k) => k + 1); // restart polling effect
     } catch {
       setRetrying(false);
     }
