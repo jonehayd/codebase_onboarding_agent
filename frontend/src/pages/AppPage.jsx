@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import AppLayout from "@components/layout/AppLayout";
-import { listSessions, createSession as apiCreateSession } from "@api/sessions";
+import { listSessions, createSession as apiCreateSession, updateSession, deleteSession } from "@api/sessions";
 import { streamChat, getChatHistory } from "@api/chat";
 import { listFiles, getFileContent as apiGetFileContent } from "@api/files";
 
@@ -84,6 +84,19 @@ export default function AppPage() {
     return session;
   }, []);
 
+  const handleRenameSession = useCallback(async (id, newTitle) => {
+    await updateSession(id, newTitle);
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s)),
+    );
+  }, []);
+
+  const handleDeleteSession = useCallback(async (id) => {
+    await deleteSession(id);
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    setSelectedId((prev) => (prev === id ? null : prev));
+  }, []);
+
   const handleIngestionComplete = useCallback(() => {
     setSessions((prev) =>
       prev.map((s) => (s.id === selectedId ? { ...s, status: "completed" } : s)),
@@ -160,6 +173,8 @@ export default function AppPage() {
       onSelectSession={handleSelectSession}
       onCreateSession={handleCreateSession}
       onIngestionComplete={handleIngestionComplete}
+      onRenameSession={handleRenameSession}
+      onDeleteSession={handleDeleteSession}
     />
   );
 }

@@ -1,109 +1,74 @@
-def build_prompt(query: str, chunks: list[dict]) -> str:
-    """Build a prompt for the LLM from a query and retrieved code chunks.
+_SYSTEM_PROMPT = """\
+You are an expert software engineer helping a developer understand a codebase.
+
+Format every response with Markdown:
+- Use **bold** for key terms, class names, and function names.
+- Use `backticks` for inline identifiers, file paths, and variable names.
+- Use bullet points or numbered lists to break up related points.
+- Use fenced code blocks with the correct language tag for any code examples.
+- Use ### headers to organise longer responses into sections.
+
+Be direct. Reference specific files and line numbers naturally inline \
+(e.g. "in `app/main.py` line 42"). Never open with meta-commentary like \
+"Based on the code" or "Looking at the provided context" — just answer.\
+"""
+
+
+def build_prompt(query: str, chunks: list[dict]) -> tuple[str, str]:
+    """Return (system_prompt, user_message) for the Anthropic API.
+
+    Keeping system instructions in the `system` parameter lets the API
+    cache them separately and prevents the model from echoing them back.
 
     Args:
         query (str): The user's question about the codebase.
         chunks (list[dict]): Retrieved code chunks from the retriever.
 
     Returns:
-        str: The fully assembled prompt to send to the LLM.
+        tuple[str, str]: (system_prompt, user_message)
     """
-    
     context = _build_context(chunks)
-    
-    return f"""You are an expert software engineer helping a developer understand a codebase.
-You are given relevant code snippets retrieved from the repository, along with the developer's question.
-Answer the question clearly and concisely based on the provided code.
-If the answer cannot be determined from the provided code, say so honestly rather than guessing.
-When referencing specific code, mention the file path and line numbers.
+    user_message = f"{context}\n\n{query}"
+    return _SYSTEM_PROMPT, user_message
 
-    {context}
-    
-    Question: {query}
-    
-    Answer:"""
-    
+
 def _build_context(chunks: list[dict]) -> str:
-    """Format retrieved chunks into a readable context block.
-
-    Args:
-        chunks (list[dict]): Retrieved code chunks from the retriever.
-
-    Returns:
-        str: Formatted context string.
-    """
-    
     if not chunks:
-        return "No relevant code snippets were found in the repository."
-    
-    parts = ["Relevant code snippets from the repository:"]
-    
-    for i, chunk in enumerate(chunks, start=1):
+        return "No relevant code was found in the repository for this question."
+
+    parts = []
+    for chunk in chunks:
         header = _build_chunk_header(chunk)
-        parts.append(f"\n--- Snippet {i}: {header} ---")
+        parts.append(f"### {header}")
+        parts.append(f"```{_guess_language(chunk)}")
         parts.append(chunk["content"])
-    
+        parts.append("```")
+
     return "\n".join(parts)
 
+
 def _build_chunk_header(chunk: dict) -> str:
-    """Build a descriptive header for a code chunk.
-
-    Args:
-        chunk (dict): A code chunk dict from the retriever.
-
-    Returns:
-        str: A short header string describing the chunk.
-    """
-    
-    file_path = chunk.get("file_path", "unknown file")
+    file_path = chunk.get("file_path", "unknown")
     start_line = chunk.get("start_line", "?")
     end_line = chunk.get("end_line", "?")
     chunk_type = chunk.get("chunk_type", "")
     name = chunk.get("name")
-    
-    location = f"{file_path} lines {start_line}-{end_line}"
-    
+
+    location = f"`{file_path}` lines {start_line}–{end_line}"
     if name:
-        return f"{chunk_type} `{name}` in {location}"
-    
+        return f"{location} ({chunk_type} `{name}`)"
     return location
 
 
-# --- manual test code ---
-if __name__ == "__main__":
-    mock_chunks = [
-        {
-            "id": 1,
-            "chunk_type": "function",
-            "name": "get_user_by_id",
-            "content": "def get_user_by_id(db, user_id: int):\n    return db.query(User).filter(User.id == user_id).first()",
-            "start_line": 12,
-            "end_line": 14,
-            "file_path": "app/services/user_service.py",
-            "distance": 0.12,
-        },
-        {
-            "id": 2,
-            "chunk_type": "class",
-            "name": "User",
-            "content": "class User(Base):\n    __tablename__ = 'users'\n    id = Column(Integer, primary_key=True)\n    email = Column(String, unique=True)",
-            "start_line": 5,
-            "end_line": 10,
-            "file_path": "app/db/models.py",
-            "distance": 0.21,
-        },
-        {
-            "id": 3,
-            "chunk_type": "imports",
-            "name": None,
-            "content": "from sqlalchemy import Column, Integer, String\nfrom app.db.database import Base",
-            "start_line": 1,
-            "end_line": 2,
-            "file_path": "app/db/models.py",
-            "distance": 0.35,
-        },
-    ]
-
-    query = "How do I fetch a user from the database?"
-    prompt = build_prompt(query, mock_chunks)
-    print(prompt)
+def _guess_language(chunk: dict) -> str:
+    """Infer a fenced-code language tag from the file extension."""
+    path = chunk.get("file_path", "")
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+    return {
+        "py": "python", "js": "javascript", "ts": "typescript",
+        "jsx": "jsx", "tsx": "tsx", "go": "go", "rs": "rust",
+        "java": "java", "cpp": "cpp", "c": "c", "cs": "csharp",
+        "rb": "ruby", "php": "php", "swift": "swift", "kt": "kotlin",
+        "sh": "bash", "yaml": "yaml", "yml": "yaml", "json": "json",
+        "md": "markdown", "sql": "sql", "html": "html", "css": "css",
+    }.get(ext, "text")

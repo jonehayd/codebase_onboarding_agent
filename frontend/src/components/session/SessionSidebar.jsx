@@ -3,7 +3,7 @@ import Card from "@/components/ui/Card";
 import NewSessionButton from "@/components/session/NewSessionButton";
 import SessionEntry from "./SessionEntry";
 
-export default function SessionSidebar({ sessions, onToggle, onSelectSession, onNewSession }) {
+export default function SessionSidebar({ sessions, onToggle, onSelectSession, onNewSession, onRenameSession, onDeleteSession }) {
   return (
     <Card className="w-full h-full p-4 flex flex-col overflow-hidden bg-surface-elevated">
       {/* Sessions header + collapse button */}
@@ -33,6 +33,8 @@ export default function SessionSidebar({ sessions, onToggle, onSelectSession, on
             lastActive={session.lastActive}
             isActive={session.isActive}
             onClick={() => onSelectSession?.(session.id)}
+            onRename={(newTitle) => onRenameSession?.(session.id, newTitle)}
+            onDelete={() => onDeleteSession?.(session.id)}
           />
         ))}
       </div>

@@ -30,8 +30,8 @@ export default function ChatPanel({ messages, onSend, isLoading }) {
         </div>
       </div>
 
-      {/* sticky input */}
-      <div className="sticky bottom-10">
+      {/* input pinned to bottom of flex column — no sticky needed */}
+      <div className="shrink-0 pb-10">
         <div className="max-w-3xl mx-auto">
           <ChatInput onSend={onSend} />
         </div>

@@ -46,6 +46,8 @@ export default function AppLayout({
   onSelectSession,
   onCreateSession,
   onIngestionComplete,
+  onRenameSession,
+  onDeleteSession,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fileTreeOpen, setFileTreeOpen] = useState(true);
@@ -90,6 +92,8 @@ export default function AppLayout({
               onToggle={() => setSidebarOpen((o) => !o)}
               onSelectSession={onSelectSession}
               onNewSession={() => setModalOpen(true)}
+              onRenameSession={onRenameSession}
+              onDeleteSession={onDeleteSession}
             />
           </Panel>
 

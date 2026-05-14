@@ -1,7 +1,7 @@
 import { LuChevronsRight } from "react-icons/lu";
 import SessionSidebar from "@/components/session/SessionSidebar";
 
-export default function Sidebar({ sessions, open, onToggle, onSelectSession, onNewSession }) {
+export default function Sidebar({ sessions, open, onToggle, onSelectSession, onNewSession, onRenameSession, onDeleteSession }) {
   if (!open) {
     return (
       <div className="flex flex-col h-full bg-surface-elevated border-r border-border items-center pt-2 overflow-hidden">
@@ -23,6 +23,8 @@ export default function Sidebar({ sessions, open, onToggle, onSelectSession, onN
         onToggle={onToggle}
         onSelectSession={onSelectSession}
         onNewSession={onNewSession}
+        onRenameSession={onRenameSession}
+        onDeleteSession={onDeleteSession}
       />
     </div>
   );

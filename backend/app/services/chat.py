@@ -129,12 +129,12 @@ def stream_chat(
     chunks = retrieve_chunks(question, repo_id, db, top_k)
     logger.debug("Retrieved %d chunk(s) for session=%d", len(chunks), session.id)
 
-    prompt = build_prompt(question, chunks)
-    
+    system, user_message = build_prompt(question, chunks)
+
     # Stream response and collect full text for saving
     full_response = []
-    
-    for token in stream_responses(prompt):
+
+    for token in stream_responses(system, user_message):
         full_response.append(token)
         yield token
         
@@ -164,8 +164,8 @@ def chat(
     save_message(session.id, MessageRole.USER, question, db)
 
     chunks = retrieve_chunks(question, repo_id, db, top_k=top_k)
-    prompt = build_prompt(question, chunks)
-    response = get_response(prompt)
+    system, user_message = build_prompt(question, chunks)
+    response = get_response(system, user_message)
 
     save_message(session.id, MessageRole.ASSISTANT, response, db)
     return response
