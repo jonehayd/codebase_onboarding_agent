@@ -93,41 +93,51 @@ def stream_chat(
     db: Session,
     top_k: int = 15,
     session_id: int | None = None,
+    save_messages: bool = True,
 ) -> Generator[str, None, None]:
     """Main entry point for the chat pipeline.
     Retrieves relevant chunks, builds a prompt, streams the LLM response,
-    and saves the conversation to the database.
+    and optionally saves the conversation to the database.
 
     Args:
         user_id (int): The ID of the user.
         repo_id (int): The ID of the repository.
         question (str): The user's question.
         db (Session): The database session.
-        top_k (int): Number of chunks to retrieve. Defaults to 8.
+        top_k (int): Number of chunks to retrieve. Defaults to 15.
         session_id (int | None): Explicit session ID; if None, one is found or created.
+        save_messages (bool): Whether to persist messages and update session activity.
+            Set to False for anonymous/share-link chat so history is not polluted.
 
     Yields:
         str: Text tokens streamed from the LLM.
     """
 
-    # Use explicit session_id when provided (sessions-centric flow)
-    if session_id is not None:
-        session = db.get(Sessions, session_id)
+    if save_messages:
+        # Use explicit session_id when provided (sessions-centric flow)
+        if session_id is not None:
+            session = db.get(Sessions, session_id)
+        else:
+            session = get_or_create_session(user_id, repo_id, db)
+
+        logger.info(
+            "Chat request: session=%d repo=%d question_len=%d",
+            session.id, repo_id, len(question),
+        )
+
+        db.execute(sql_update(Sessions).where(Sessions.id == session.id).values(last_active_at=func.now()))
+        db.commit()
+
+        save_message(session.id, MessageRole.USER, question, db)
     else:
-        session = get_or_create_session(user_id, repo_id, db)
-
-    logger.info(
-        "Chat request: session=%d repo=%d question_len=%d",
-        session.id, repo_id, len(question),
-    )
-
-    db.execute(sql_update(Sessions).where(Sessions.id == session.id).values(last_active_at=func.now()))
-    db.commit()
-
-    save_message(session.id, MessageRole.USER, question, db)
+        session = None
+        logger.info("Chat request (anonymous): repo=%d question_len=%d", repo_id, len(question))
 
     chunks = retrieve_chunks(question, repo_id, db, top_k)
-    logger.debug("Retrieved %d chunk(s) for session=%d", len(chunks), session.id)
+    if session:
+        logger.debug("Retrieved %d chunk(s) for session=%d", len(chunks), session.id)
+    else:
+        logger.debug("Retrieved %d chunk(s) for repo=%d (anonymous)", len(chunks), repo_id)
 
     repo = db.get(Repositories, repo_id)
     repo_name = f"{repo.owner}/{repo.name}" if repo else None
@@ -140,9 +150,10 @@ def stream_chat(
     for token in stream_responses(system, user_message):
         full_response.append(token)
         yield token
-        
-    # Save assistant response
-    save_message(session.id, MessageRole.ASSISTANT, "".join(full_response), db)
+
+    # Save assistant response only when tracking history
+    if save_messages and session is not None:
+        save_message(session.id, MessageRole.ASSISTANT, "".join(full_response), db)
 
 def chat(
     user_id: int,

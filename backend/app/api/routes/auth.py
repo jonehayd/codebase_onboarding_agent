@@ -1,4 +1,5 @@
 import httpx
+from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -37,8 +38,7 @@ def github_login(private: bool = False):
         "scope": scope,
         "state": "repo" if private else "basic",
     }
-    query_string = "&".join(f"{k}={v}" for k, v in params.items())
-    return RedirectResponse(url=f"{GITHUB_AUTH_URL}?{query_string}")
+    return RedirectResponse(url=f"{GITHUB_AUTH_URL}?{urlencode(params)}")
 
 @router.get("/github/callback")
 @limiter.limit("20/hour")

@@ -113,6 +113,42 @@ export default function AssistantMessageContent({ content }) {
           tr({ children }) {
             return <tr className="even:bg-surface-raised">{children}</tr>;
           },
+          // links
+          a({ href, children }) {
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-text underline underline-offset-2 opacity-80 hover:opacity-100"
+              >
+                {children}
+              </a>
+            );
+          },
+          // blockquotes
+          blockquote({ children }) {
+            return (
+              <blockquote className="border-l-4 border-border pl-3 my-2 text-text-muted italic">
+                {children}
+              </blockquote>
+            );
+          },
+          // headings
+          h1({ children }) {
+            return (
+              <h1 className="text-[1rem] font-bold text-text mt-4 mb-2">
+                {children}
+              </h1>
+            );
+          },
+          h2({ children }) {
+            return (
+              <h2 className="text-sm font-bold text-text mt-3 mb-1">
+                {children}
+              </h2>
+            );
+          },
         }}
       >
         {content}
