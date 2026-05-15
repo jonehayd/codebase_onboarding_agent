@@ -211,7 +211,7 @@ export function IngestionView({ sessionId, onComplete, onFailed }) {
             setTimeout(() => onComplete?.(), 1500);
           }
           if (data.status === "failed") {
-            onFailed?.(data.error_message ?? null);
+            onFailed?.(data.error_message ?? null, data.stage === "cancelled");
           }
         }
       } catch (e) {

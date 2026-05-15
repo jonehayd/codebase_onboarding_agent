@@ -1,6 +1,7 @@
 // components/chat/AssistantMessageContent.jsx
 
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -8,6 +9,7 @@ export default function AssistantMessageContent({ content }) {
   return (
     <div className="text-sm text-text leading-relaxed select-text">
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
           // strip the <pre> wrapper so code handles its own container
           pre({ children }) {
@@ -79,6 +81,72 @@ export default function AssistantMessageContent({ content }) {
           h3({ children }) {
             return (
               <h3 className="font-semibold text-text mt-3 mb-1">{children}</h3>
+            );
+          },
+          // tables
+          table({ children }) {
+            return (
+              <div className="my-3 overflow-x-auto">
+                <table className="w-full text-sm border-collapse border border-border">
+                  {children}
+                </table>
+              </div>
+            );
+          },
+          thead({ children }) {
+            return <thead className="bg-surface-high">{children}</thead>;
+          },
+          th({ children }) {
+            return (
+              <th className="px-3 py-2 text-left font-semibold text-text border border-border">
+                {children}
+              </th>
+            );
+          },
+          td({ children }) {
+            return (
+              <td className="px-3 py-2 text-text border border-border">
+                {children}
+              </td>
+            );
+          },
+          tr({ children }) {
+            return <tr className="even:bg-surface-raised">{children}</tr>;
+          },
+          // links
+          a({ href, children }) {
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-text underline underline-offset-2 opacity-80 hover:opacity-100"
+              >
+                {children}
+              </a>
+            );
+          },
+          // blockquotes
+          blockquote({ children }) {
+            return (
+              <blockquote className="border-l-4 border-border pl-3 my-2 text-text-muted italic">
+                {children}
+              </blockquote>
+            );
+          },
+          // headings
+          h1({ children }) {
+            return (
+              <h1 className="text-[1rem] font-bold text-text mt-4 mb-2">
+                {children}
+              </h1>
+            );
+          },
+          h2({ children }) {
+            return (
+              <h2 className="text-sm font-bold text-text mt-3 mb-1">
+                {children}
+              </h2>
             );
           },
         }}

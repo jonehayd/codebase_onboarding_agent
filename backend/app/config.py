@@ -27,7 +27,8 @@ class Settings(BaseSettings):
 
     # Repository processing settings
     max_file_size_bytes: int = 100_000 # Skip files larger than 100 KB
-    max_files_per_repo: int = 10_000
+    max_files_per_repo: int = 2_000    # Stop fetching after this many files
+    max_repo_size_kb: int = 500_000    # Reject repos larger than ~500 MB (GitHub reports in KB)
     
     # Embedding settings
     embedding_model: str = "text-embedding-3-small"

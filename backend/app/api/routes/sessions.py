@@ -468,7 +468,7 @@ def list_files(
 @router.get("/{session_id}/files/search", response_model=SearchFilesOut)
 def search_files(
     session_id: int,
-    q: str,
+    q: str = Query(..., min_length=1, max_length=200),
     current_user: Users = Depends(get_current_user),
     db: DBSession = Depends(get_db),
 ):

@@ -86,6 +86,7 @@ def shared_chat(
             repo_id=repo.id,
             question=body.question,
             db=db,
+            save_messages=False,
         ):
             yield f"data: {json.dumps(token_text)}\n\n"
         yield "data: [DONE]\n\n"

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LuCircleAlert, LuChevronsRight, LuX } from "react-icons/lu";
+import { LuCircleAlert, LuBan, LuChevronsRight, LuX } from "react-icons/lu";
 
 import Header from "./Header";
 import Panel from "./Panel";
@@ -34,21 +34,34 @@ function makeResizer(setter, min, max, reversed = false) {
 
 const PROCESSING_STATUSES = new Set(["pending", "processing"]);
 
-function RepoErrorPanel({ errorMessage, onRetry, retrying }) {
+function RepoErrorPanel({
+  errorMessage,
+  cancelled = false,
+  onRetry,
+  retrying,
+}) {
   return (
     <div className="flex-1 h-full flex flex-col items-center justify-center gap-6 p-8 bg-surface">
       <div
         className="w-16 h-16 rounded-full flex items-center justify-center"
-        style={{ border: "2px solid var(--color-error)" }}
+        style={{
+          border: `2px solid var(${cancelled ? "--color-border" : "--color-error"})`,
+        }}
       >
-        <LuCircleAlert size={28} style={{ color: "var(--color-error)" }} />
+        {cancelled ? (
+          <LuBan size={28} style={{ color: "var(--color-text-muted)" }} />
+        ) : (
+          <LuCircleAlert size={28} style={{ color: "var(--color-error)" }} />
+        )}
       </div>
       <div className="text-center flex flex-col gap-2">
         <p className="text-xs uppercase tracking-widest text-text-subtle">
-          Ingestion failed
+          {cancelled ? "Ingestion cancelled" : "Ingestion failed"}
         </p>
         <p className="text-sm font-mono text-text max-w-xs">
-          {errorMessage ?? "Repository not found or is private"}
+          {cancelled
+            ? "Cancelled by user"
+            : (errorMessage ?? "Repository not found or is private")}
         </p>
       </div>
       <button
@@ -177,6 +190,7 @@ export default function AppLayout({
             ) : activeSession?.status === "failed" ? (
               <RepoErrorPanel
                 errorMessage={activeSession.errorMessage}
+                cancelled={activeSession.wasCancelled ?? false}
                 onRetry={handleRetry}
                 retrying={retrying}
               />

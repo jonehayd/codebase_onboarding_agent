@@ -117,11 +117,16 @@ export default function AppPage() {
   }, [selectedId]);
 
   const handleIngestionFailed = useCallback(
-    (errorMessage) => {
+    (errorMessage, wasCancelled = false) => {
       setSessions((prev) =>
         prev.map((s) =>
           s.id === selectedId
-            ? { ...s, status: "failed", errorMessage: errorMessage ?? null }
+            ? {
+                ...s,
+                status: "failed",
+                errorMessage: errorMessage ?? null,
+                wasCancelled,
+              }
             : s,
         ),
       );
