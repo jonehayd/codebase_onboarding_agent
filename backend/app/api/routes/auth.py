@@ -106,6 +106,33 @@ def get_me(current_user: Users = Depends(get_current_user)):
     }
 
 
+@router.get("/repos")
+def list_user_repos(current_user: Users = Depends(get_current_user)):
+    """Return the authenticated user's GitHub repositories (requires repo access)."""
+    if not current_user.has_repo_access or not current_user.github_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Repository access not granted. Re-authenticate with repo scope.",
+        )
+    from github import Auth, Github
+    import github as gh_lib
+    try:
+        g = Github(auth=Auth.Token(current_user.github_token))
+        repos = [
+            {
+                "full_name": r.full_name,
+                "owner": r.owner.login,
+                "name": r.name,
+                "private": r.private,
+                "description": r.description,
+            }
+            for r in g.get_user().get_repos(sort="updated", type="owner")
+        ]
+    except gh_lib.GithubException as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    return {"repos": repos}
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),

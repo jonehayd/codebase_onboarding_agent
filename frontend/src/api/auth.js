@@ -14,7 +14,9 @@ const GITHUB_OAUTH_BASE = "https://github.com/login/oauth/authorize";
 export function getGitHubOAuthURL(withRepoAccess = false) {
   const params = new URLSearchParams({
     client_id: import.meta.env.VITE_GITHUB_CLIENT_ID,
-    scope: withRepoAccess ? "read:user user:email repo" : "read:user user:email",
+    scope: withRepoAccess
+      ? "read:user user:email repo"
+      : "read:user user:email",
     state: withRepoAccess ? "repo" : "basic",
   });
   return `${GITHUB_OAUTH_BASE}?${params}`;
@@ -44,6 +46,16 @@ export async function handleGitHubCallback(code, state) {
  */
 export async function getMe() {
   return apiJSON("/auth/me");
+}
+
+/**
+ * Returns the authenticated user's GitHub repositories (requires repo scope).
+ * GET /auth/repos
+ *
+ * @returns {Promise<{ repos: Array<{full_name, owner, name, private, description}> }>}
+ */
+export async function listUserRepos() {
+  return apiJSON("/auth/repos");
 }
 
 /**

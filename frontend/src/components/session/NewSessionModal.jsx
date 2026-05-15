@@ -1,11 +1,43 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RxCross2 as X } from "react-icons/rx";
 import { FaLink } from "react-icons/fa";
+import { LuChevronDown, LuChevronUp, LuLock, LuGlobe } from "react-icons/lu";
+import { listUserRepos } from "@api/auth";
 
-export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
+export default function NewSessionModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  hasRepoAccess = false,
+}) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [errors, setErrors] = useState({});
+  const [reposOpen, setReposOpen] = useState(false);
+  const [repos, setRepos] = useState([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState(null);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setUrl("");
+      setTitle("");
+      setErrors({});
+      setReposOpen(false);
+    }
+  }, [isOpen]);
+
+  // Fetch repos when the picker is opened for the first time
+  useEffect(() => {
+    if (!reposOpen || repos.length > 0 || reposLoading) return;
+    setReposLoading(true);
+    setReposError(null);
+    listUserRepos()
+      .then(({ repos: r }) => setRepos(r))
+      .catch(() => setReposError("Failed to load repositories."))
+      .finally(() => setReposLoading(false));
+  }, [reposOpen]);
 
   if (!isOpen) return null;
 
@@ -92,6 +124,71 @@ export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
               <span className="text-xs text-red-500">{errors.url}</span>
             )}
           </div>
+
+          {/* Your Repositories picker (only when user granted repo access) */}
+          {hasRepoAccess && (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setReposOpen((o) => !o)}
+                className="flex items-center justify-between w-full text-xs font-semibold text-text tracking-widest uppercase hover:text-text-muted transition-colors"
+              >
+                <span>Your Repositories</span>
+                {reposOpen ? (
+                  <LuChevronUp size={14} />
+                ) : (
+                  <LuChevronDown size={14} />
+                )}
+              </button>
+
+              {reposOpen && (
+                <div className="border border-border overflow-y-auto max-h-48">
+                  {reposLoading && (
+                    <p className="text-xs text-text-muted px-3 py-4 text-center">
+                      Loading…
+                    </p>
+                  )}
+                  {reposError && (
+                    <p className="text-xs text-error px-3 py-4 text-center">
+                      {reposError}
+                    </p>
+                  )}
+                  {!reposLoading && !reposError && repos.length === 0 && (
+                    <p className="text-xs text-text-muted px-3 py-4 text-center">
+                      No repositories found.
+                    </p>
+                  )}
+                  {repos.map((repo) => (
+                    <button
+                      key={repo.full_name}
+                      type="button"
+                      onClick={() => {
+                        setUrl(`https://github.com/${repo.full_name}`);
+                        setErrors((prev) => ({ ...prev, url: null }));
+                        setReposOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-surface-high transition-colors group"
+                    >
+                      <span className="text-sm font-mono text-text truncate">
+                        {repo.full_name}
+                      </span>
+                      {repo.private ? (
+                        <LuLock
+                          size={12}
+                          className="text-text-subtle shrink-0"
+                        />
+                      ) : (
+                        <LuGlobe
+                          size={12}
+                          className="text-text-subtle shrink-0"
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Optional title field */}
           <div className="flex flex-col gap-2">

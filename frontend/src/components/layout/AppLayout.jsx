@@ -76,6 +76,7 @@ export default function AppLayout({
   onIngestionComplete,
   onIngestionFailed,
   onRetryIngestion,
+  hasRepoAccess = false,
   onRenameSession,
   onDeleteSession,
 }) {
@@ -219,6 +220,7 @@ export default function AppLayout({
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
+        hasRepoAccess={hasRepoAccess}
       />
     </>
   );

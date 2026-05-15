@@ -9,6 +9,7 @@ import {
 } from "@api/sessions";
 import { streamChat, getChatHistory } from "@api/chat";
 import { listFiles, getFileContent as apiGetFileContent } from "@api/files";
+import { getMe } from "@api/auth";
 
 const PROCESSING_STATUSES = new Set(["pending", "processing"]);
 
@@ -29,6 +30,7 @@ export default function AppPage() {
   const [messages, setMessages] = useState([]);
   const [files, setFiles] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [hasRepoAccess, setHasRepoAccess] = useState(false);
 
   // Keeps a ref to the abort function so we can cancel mid-stream on unmount
   // or when the user switches sessions.
@@ -38,6 +40,9 @@ export default function AppPage() {
   useEffect(() => {
     listSessions()
       .then(({ sessions: raw }) => setSessions(raw.map(normalizeSession)))
+      .catch(() => {});
+    getMe()
+      .then((u) => setHasRepoAccess(u.has_repo_access ?? false))
       .catch(() => {});
   }, []);
 
@@ -208,6 +213,7 @@ export default function AppPage() {
       onIngestionComplete={handleIngestionComplete}
       onIngestionFailed={handleIngestionFailed}
       onRetryIngestion={handleRetryIngestion}
+      hasRepoAccess={hasRepoAccess}
       onRenameSession={handleRenameSession}
       onDeleteSession={handleDeleteSession}
     />
