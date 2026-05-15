@@ -42,18 +42,24 @@ def github_login(private: bool = False):
 
 @router.get("/github/callback")
 @limiter.limit("20/hour")
-def github_callback(request: Request,code: str, state: str | None = None, db: Session = Depends(get_db)):
+def github_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db),
+):
     """Handles the callback from GitHub after user authorization.
 
     Args:
-        code (str): The authorization code returned by GitHub.
+        code (str | None): The authorization code returned by GitHub.
         state (str | None): The state parameter to determine if repo access was requested.
+        error (str | None): Set by GitHub when the user cancels or denies access.
         db (Session): The database session.
-    
-    Returns:
-        dict: A JSON response containing the JWT token and user info.
     """
-    
+    if error or not code:
+        return RedirectResponse(url=settings.frontend_url, status_code=302)
+
     github_token = _exchange_code_for_token(code)
     profile = _fetch_github_profile(github_token)
     email = _fetch_github_email(github_token)
@@ -85,18 +91,8 @@ def github_callback(request: Request,code: str, state: str | None = None, db: Se
 
     jwt_token = create_token(user.id)
 
-    # In production redirect to frontend
-    # For testing return json
-    return {
-        "access_token": jwt_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "has_repo_access": user.has_repo_access,
-        }
-    }
+    redirect_url = f"{settings.frontend_url}/auth/callback?token={jwt_token}"
+    return RedirectResponse(url=redirect_url, status_code=302)
     
 @router.get("/me", response_model=UserOut)
 def get_me(current_user: Users = Depends(get_current_user)):
@@ -108,6 +104,33 @@ def get_me(current_user: Users = Depends(get_current_user)):
         "has_repo_access": current_user.has_repo_access,
         "created_at": current_user.created_at,
     }
+
+
+@router.get("/repos")
+def list_user_repos(current_user: Users = Depends(get_current_user)):
+    """Return the authenticated user's GitHub repositories (requires repo access)."""
+    if not current_user.has_repo_access or not current_user.github_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Repository access not granted. Re-authenticate with repo scope.",
+        )
+    from github import Auth, Github
+    import github as gh_lib
+    try:
+        g = Github(auth=Auth.Token(current_user.github_token))
+        repos = [
+            {
+                "full_name": r.full_name,
+                "owner": r.owner.login,
+                "name": r.name,
+                "private": r.private,
+                "description": r.description,
+            }
+            for r in g.get_user().get_repos(sort="updated", type="owner")
+        ]
+    except gh_lib.GithubException as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    return {"repos": repos}
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

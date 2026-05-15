@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { RiTerminalBoxFill } from "react-icons/ri";
+import { LuLock } from "react-icons/lu";
 import Card from "@components/ui/Card";
-
-const GITHUB_OAUTH_URL = `https://github.com/login/oauth/authorize?client_id=${import.meta.env.VITE_GITHUB_CLIENT_ID}&scope=repo,read:user`;
+import { getGitHubOAuthURL } from "@api/auth";
 
 export default function LoginPage() {
+  const [withRepoAccess, setWithRepoAccess] = useState(false);
+
   return (
     <div className="min-h-screen bg-color-base flex items-center justify-center px-4">
-      <Card className="w-full max-w-150 min-h-150 flex flex-col items-center justify-center gap-4 mx-auto text-center">
+      <Card className="w-full max-w-150 min-h-150 flex flex-col items-center justify-center gap-4 mx-auto text-center p-8">
         <RiTerminalBoxFill className="w-20 h-20 text-color-text m-4 p-2 border border-border bg-surface-high" />
         <div className="flex flex-col gap-2">
           <h1 className="text-4xl m-2">Codebase Onboarding Agent</h1>
@@ -18,9 +21,42 @@ export default function LoginPage() {
 
         <hr className="w-full border-none h-px bg-color-border" />
 
-        <GitHubButton href={GITHUB_OAUTH_URL} />
+        <PrivateRepoToggle checked={withRepoAccess} onChange={setWithRepoAccess} />
+
+        <GitHubButton href={getGitHubOAuthURL(withRepoAccess)} />
       </Card>
     </div>
+  );
+}
+
+function PrivateRepoToggle({ checked, onChange }) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center gap-3 px-4 py-3 border transition-colors duration-150 text-left
+        bg-surface-raised border-border hover:border-text-subtle"
+    >
+      <LuLock
+        size={15}
+        className={`shrink-0 transition-colors duration-150 ${checked ? "text-success" : "text-text-muted"}`}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-text">Include private repositories</div>
+        <div className="text-xs text-text-muted mt-0.5">
+          Grants read access to your private repos
+        </div>
+      </div>
+      {/* pill toggle */}
+      <div
+        className={`relative shrink-0 w-9 h-5 rounded-full transition-colors duration-200
+          ${checked ? "bg-success" : "bg-surface-highest"}`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm
+            transition-transform duration-200 ${checked ? "translate-x-4" : "translate-x-0"}`}
+        />
+      </div>
+    </button>
   );
 }
 

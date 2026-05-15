@@ -13,6 +13,7 @@ from app.services.analyze import (
     ingest_repo,
     ingest_changed_files,
 )
+from app.services import progress_store
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +54,26 @@ def run_ingestion(repo_id: int, owner: str, name: str, db: DBSession, github_tok
         logger.info("Skipping ingestion for %s/%s (status=%s)", owner, name, repo.status if repo else "missing")
         return
 
-    gh_repo = fetch_repo(owner, name, token=github_token)
-    latest_hash = get_latest_commit_hash(gh_repo)
+    progress_store.init_progress(repo_id)
 
-    if repo.commit_hash and repo.commit_hash != latest_hash:
-        ingest_changed_files(repo_id, owner, name, gh_repo, repo.commit_hash, latest_hash, db)
-    else:
-        ingest_repo(repo_id, owner, name, db, gh_repo=gh_repo)
+    try:
+        gh_repo = fetch_repo(owner, name, token=github_token)
+        latest_hash = get_latest_commit_hash(gh_repo)
+
+        if repo.commit_hash and repo.commit_hash != latest_hash:
+            ingest_changed_files(repo_id, owner, name, gh_repo, repo.commit_hash, latest_hash, db)
+        else:
+            ingest_repo(repo_id, owner, name, db, gh_repo=gh_repo)
+    except ValueError as e:
+        logger.error("Ingestion failed for %s/%s: %s", owner, name, e)
+        repo.status = RepoStatus.FAILED
+        db.commit()
+        progress_store.mark_failed(repo_id, error_message=str(e))
+    except Exception as e:
+        logger.exception("Unexpected error during ingestion for %s/%s", owner, name)
+        repo.status = RepoStatus.FAILED
+        db.commit()
+        progress_store.mark_failed(repo_id, error_message=f"Unexpected error: {e}")
 
 
 def delete_session(session_id: int, user_id: int, db: DBSession) -> bool:

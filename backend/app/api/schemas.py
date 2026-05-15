@@ -76,6 +76,7 @@ class SessionStatusOut(BaseModel):
     vector_count: int
     elapsed_seconds: Optional[int] = None
     commit_hash: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class FreshnessOut(BaseModel):

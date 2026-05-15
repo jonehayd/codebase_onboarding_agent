@@ -2,7 +2,7 @@ import { useState } from "react";
 import NewSessionModal from "./NewSessionModal";
 
 export default {
-  title: "Components/NewSessionModal",
+  title: "Components/Session/NewSessionModal",
   component: NewSessionModal,
   decorators: [
     (Story) => (

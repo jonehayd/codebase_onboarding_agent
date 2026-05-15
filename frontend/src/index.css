@@ -6,6 +6,7 @@
   /* Surfaces */
   --color-base: #000000;
   --color-surface: #09090b;
+  --color-surface-elevated: #111113;
   --color-surface-raised: #18181b;
   --color-surface-high: #27272a;
   --color-surface-highest: #3f3f46;
@@ -139,8 +140,8 @@ body {
   /* --- Selection --- */
 
   ::selection {
-    background-color: var(--color-surface-highest);
-    color: var(--color-text);
+    background-color: #4f46e5;
+    color: #ffffff;
   }
 }
 

@@ -1,7 +1,7 @@
 import SessionEntry from "./SessionEntry";
 
 export default {
-  title: "Layout/SessionEntry",
+  title: "Components/Session/SessionEntry",
   component: SessionEntry,
   argTypes: {
     title: { control: "text" },

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams } from "react-router-dom";
 import {
-  getSessionDetail,
+  getSession,
   getSessionStatus,
   cancelIngestion,
-  retryIngestion,
+  reingestSession,
 } from "@api/sessions";
 
 const STAGES = [
@@ -72,13 +72,36 @@ function CircularProgress({ percent, isComplete, isFailed }) {
             transition: "stroke-dashoffset 0.5s ease, stroke 0.3s ease",
           }}
         />
+        {/* Checkmark draws in after the ring fills — counter-rotate so it renders upright */}
+        {isComplete && (
+          <g
+            style={{ transform: "rotate(90deg)", transformOrigin: "72px 72px" }}
+          >
+            <path
+              d="M44 74 L62 92 L100 54"
+              fill="none"
+              stroke="var(--color-success)"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                strokeDasharray: 80,
+                strokeDashoffset: 80,
+                animation:
+                  "drawCheck 0.5s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards",
+              }}
+            />
+          </g>
+        )}
       </svg>
-      <span
-        className="absolute text-2xl font-semibold"
-        style={{ color: strokeColor, transition: "color 0.3s ease" }}
-      >
-        {percent}%
-      </span>
+      {!isComplete && (
+        <span
+          className="absolute text-2xl font-semibold"
+          style={{ color: strokeColor, transition: "color 0.3s ease" }}
+        >
+          {percent}%
+        </span>
+      )}
     </div>
   );
 }
@@ -149,27 +172,28 @@ function Stat({ label, value }) {
   );
 }
 
-// --- Main page ---
+// --- Main view (embeddable — accepts sessionId as a prop) ---
 
-export default function IngestionPage() {
-  const { sessionId } = useParams();
-  const navigate = useNavigate();
-
+export function IngestionView({ sessionId, onComplete, onFailed }) {
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+  const [retryKey, setRetryKey] = useState(0);
+  const completedRef = useRef(false);
 
   // Load repo name once
   useEffect(() => {
-    getSessionDetail(sessionId)
+    getSession(sessionId)
       .then(setSession)
       .catch(() => {});
   }, [sessionId]);
 
   // Poll ingestion status
   useEffect(() => {
+    completedRef.current = false;
+    setStatus(null);
     let active = true;
     let intervalId;
 
@@ -181,6 +205,14 @@ export default function IngestionPage() {
         setFetchError(null);
         if (!ACTIVE_STATUSES.has(data.status)) {
           clearInterval(intervalId);
+          if (data.status === "completed" && !completedRef.current) {
+            completedRef.current = true;
+            // Delay so the checkmark animation finishes before transitioning
+            setTimeout(() => onComplete?.(), 1500);
+          }
+          if (data.status === "failed") {
+            onFailed?.(data.error_message ?? null);
+          }
         }
       } catch (e) {
         if (active) setFetchError(e.message);
@@ -194,7 +226,7 @@ export default function IngestionPage() {
       active = false;
       clearInterval(intervalId);
     };
-  }, [sessionId]);
+  }, [sessionId, retryKey, onComplete, onFailed]);
 
   const handleCancel = useCallback(async () => {
     setCancelling(true);
@@ -208,14 +240,9 @@ export default function IngestionPage() {
   const handleRetry = useCallback(async () => {
     setRetrying(true);
     try {
-      await retryIngestion(sessionId);
+      await reingestSession(sessionId);
       setRetrying(false);
-      // Resume polling
-      setStatus((prev) =>
-        prev
-          ? { ...prev, status: "pending", stage: "fetching_files", percent: 0 }
-          : prev,
-      );
+      setRetryKey((k) => k + 1); // restart polling effect
     } catch {
       setRetrying(false);
     }
@@ -266,7 +293,8 @@ export default function IngestionPage() {
             : isCancelled
               ? "Cancelled by user"
               : isFailed
-                ? "An error occurred during ingestion"
+                ? (status?.error_message ??
+                  "An error occurred during ingestion")
                 : currentStage === "fetching_files"
                   ? "Fetching repository files…"
                   : currentStage === "parsing_code"
@@ -332,7 +360,17 @@ export default function IngestionPage() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
+        @keyframes drawCheck {
+          to { stroke-dashoffset: 0; }
+        }
       `}</style>
     </div>
   );
+}
+
+// --- Router page wrapper ---
+
+export default function IngestionPage() {
+  const { sessionId } = useParams();
+  return <IngestionView sessionId={sessionId} />;
 }

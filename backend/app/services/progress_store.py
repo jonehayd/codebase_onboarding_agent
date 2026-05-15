@@ -22,6 +22,7 @@ def init_progress(repo_id: int) -> None:
             "percent": 0,
             "started_at": time.time(),
             "final_elapsed": None,
+            "error_message": None,
         }
         _cancel_flags.discard(repo_id)
 
@@ -55,11 +56,13 @@ def mark_completed(repo_id: int) -> None:
             _progress[repo_id]["final_elapsed"] = int(time.time() - _progress[repo_id]["started_at"])
 
 
-def mark_failed(repo_id: int, cancelled: bool = False) -> None:
+def mark_failed(repo_id: int, cancelled: bool = False, error_message: Optional[str] = None) -> None:
     with _lock:
         if repo_id in _progress:
             _progress[repo_id]["stage"] = "cancelled" if cancelled else "failed"
             _progress[repo_id]["final_elapsed"] = int(time.time() - _progress[repo_id]["started_at"])
+            if error_message is not None:
+                _progress[repo_id]["error_message"] = error_message
         _cancel_flags.discard(repo_id)
 
 

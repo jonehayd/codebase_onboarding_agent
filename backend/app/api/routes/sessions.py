@@ -1,3 +1,4 @@
+import json
 import re
 from urllib.parse import urlparse
 
@@ -44,7 +45,13 @@ _REPO_RE = re.compile(r"^[a-zA-Z0-9_-][a-zA-Z0-9._-]{0,99}$")
 
 
 def _parse_github_url(url: str) -> tuple[str, str]:
-    parsed = urlparse(url.strip())
+    raw = url.strip()
+
+    # Accept shorthand "owner/repo" with no scheme or host
+    if not raw.startswith(("http://", "https://")):
+        raw = f"https://github.com/{raw}"
+
+    parsed = urlparse(raw)
 
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(
@@ -99,7 +106,7 @@ class PatchSessionRequest(BaseModel):
 # --- Session CRUD ---
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=CreateSessionOut)
-@limiter.limit("3/day")
+@limiter.limit("20/day")
 def create_session(
     request: Request,
     url: str,
@@ -260,6 +267,7 @@ def get_session_status(
         percent = prog["percent"]
         files_total = prog["files_total"] or file_count
         elapsed_seconds = prog["elapsed_seconds"]
+        error_message = prog.get("error_message")
     else:
         _stage_map = {
             "pending": "fetching_files",
@@ -271,6 +279,7 @@ def get_session_status(
         percent = 100 if repo.status == "completed" else 0
         files_total = file_count
         elapsed_seconds = None
+        error_message = None
 
     return {
         "session_id": session.id,
@@ -283,6 +292,7 @@ def get_session_status(
         "vector_count": vector_count,
         "elapsed_seconds": elapsed_seconds,
         "commit_hash": repo.commit_hash,
+        "error_message": error_message,
     }
 
 
@@ -405,7 +415,7 @@ def chat(
             db=db,
             session_id=session_id,
         ):
-            yield f"data: {token}\n\n"
+            yield f"data: {json.dumps(token)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
