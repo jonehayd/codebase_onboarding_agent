@@ -1,6 +1,7 @@
 // components/chat/AssistantMessageContent.jsx
 
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -8,6 +9,7 @@ export default function AssistantMessageContent({ content }) {
   return (
     <div className="text-sm text-text leading-relaxed select-text">
       <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
           // strip the <pre> wrapper so code handles its own container
           pre({ children }) {
@@ -80,6 +82,36 @@ export default function AssistantMessageContent({ content }) {
             return (
               <h3 className="font-semibold text-text mt-3 mb-1">{children}</h3>
             );
+          },
+          // tables
+          table({ children }) {
+            return (
+              <div className="my-3 overflow-x-auto">
+                <table className="w-full text-sm border-collapse border border-border">
+                  {children}
+                </table>
+              </div>
+            );
+          },
+          thead({ children }) {
+            return <thead className="bg-surface-high">{children}</thead>;
+          },
+          th({ children }) {
+            return (
+              <th className="px-3 py-2 text-left font-semibold text-text border border-border">
+                {children}
+              </th>
+            );
+          },
+          td({ children }) {
+            return (
+              <td className="px-3 py-2 text-text border border-border">
+                {children}
+              </td>
+            );
+          },
+          tr({ children }) {
+            return <tr className="even:bg-surface-raised">{children}</tr>;
           },
         }}
       >
