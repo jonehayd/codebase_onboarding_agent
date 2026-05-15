@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { LuChevronsRight, LuX } from "react-icons/lu";
+import { LuChevronsRight, LuUnlink, LuX } from "react-icons/lu";
 import {
   getSharedRepo,
   getSharedHistory,
@@ -126,12 +126,24 @@ export default function SharePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-base flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-error text-sm mb-2">
-            Share link not found or revoked
+      <div className="min-h-screen bg-base flex flex-col items-center justify-center gap-6 p-8">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{ border: "2px solid var(--color-border)" }}
+        >
+          <LuUnlink size={28} className="text-text-muted" />
+        </div>
+        <div className="text-center flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-widest text-text-subtle">
+            Link unavailable
           </p>
-          <p className="text-text-subtle text-xs">{error}</p>
+          <h1 className="text-xl font-semibold text-text">
+            This share link has been revoked
+          </h1>
+          <p className="text-sm text-text-muted max-w-xs">
+            The owner of this link has removed access. If you think this is a
+            mistake, ask them to share it again.
+          </p>
         </div>
       </div>
     );
