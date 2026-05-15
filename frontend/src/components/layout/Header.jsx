@@ -6,7 +6,7 @@ export default function Header({ activeSession }) {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    navigate("/");
+    navigate("/"); // landing page
   };
 
   return (

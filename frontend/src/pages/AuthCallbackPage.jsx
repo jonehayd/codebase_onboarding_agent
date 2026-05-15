@@ -16,8 +16,13 @@ export default function AuthCallbackPage() {
     return (
       <div className="min-h-screen bg-base flex items-center justify-center">
         <div className="text-center flex flex-col gap-4">
-          <p className="text-error">Authentication failed — no token received.</p>
-          <a href="/" className="text-text-muted hover:text-text underline text-sm">
+          <p className="text-error">
+            Authentication failed — no token received.
+          </p>
+          <a
+            href="/login"
+            className="text-text-muted hover:text-text underline text-sm"
+          >
             Back to login
           </a>
         </div>
