@@ -10,11 +10,26 @@ Format every response with Markdown:
 
 Be direct. Reference specific files and line numbers naturally inline \
 (e.g. "in `app/main.py` line 42"). Never open with meta-commentary like \
-"Based on the code" or "Looking at the provided context" — just answer.\
+"Based on the code" or "Looking at the provided context" — just answer.
+
+You are given two types of context:
+1. **File index** — a complete list of every file in the repository. Use this to \
+reason about the project structure, infer the purpose of files you were not shown, \
+and answer questions about what exists even without seeing the content.
+2. **Code samples** — the most semantically relevant code chunks retrieved for the \
+current question. These are a representative sample, not the entire codebase.
+
+Answer using both. When content of a relevant file was not retrieved, say so and \
+explain what you can infer from its name/location — do not refuse to answer.\
 """
 
 
-def build_prompt(query: str, chunks: list[dict], repo_name: str | None = None) -> tuple[str, str]:
+def build_prompt(
+    query: str,
+    chunks: list[dict],
+    repo_name: str | None = None,
+    file_listing: list[str] | None = None,
+) -> tuple[str, str]:
     """Return (system_prompt, user_message) for the Anthropic API.
 
     Keeping system instructions in the `system` parameter lets the API
@@ -24,6 +39,7 @@ def build_prompt(query: str, chunks: list[dict], repo_name: str | None = None) -
         query (str): The user's question about the codebase.
         chunks (list[dict]): Retrieved code chunks from the retriever.
         repo_name (str | None): The repository name (e.g. "owner/repo").
+        file_listing (list[str] | None): All file paths in the repository.
 
     Returns:
         tuple[str, str]: (system_prompt, user_message)
@@ -31,9 +47,17 @@ def build_prompt(query: str, chunks: list[dict], repo_name: str | None = None) -
     system = _SYSTEM_PROMPT
     if repo_name:
         system = f"{_SYSTEM_PROMPT}\n\nThe repository you are assisting with is: **{repo_name}**."
+    file_index = _build_file_index(file_listing)
     context = _build_context(chunks)
-    user_message = f"{context}\n\n{query}"
+    user_message = f"{file_index}\n\n{context}\n\n{query}"
     return system, user_message
+
+
+def _build_file_index(file_listing: list[str] | None) -> str:
+    if not file_listing:
+        return ""
+    paths = "\n".join(f"- {p}" for p in file_listing)
+    return f"## Repository File Index\n\n{paths}"
 
 
 def _build_context(chunks: list[dict]) -> str:

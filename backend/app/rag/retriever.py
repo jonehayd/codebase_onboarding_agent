@@ -1,9 +1,21 @@
 from requests import Session
 from sqlalchemy import select, text
 
+from app.db.models import Files
 from app.rag.embeddings import embed_query
 
-def retrieve_chunks(query: str, repo_id: int, db: Session, top_k: int = 8) -> list[dict]:
+
+def list_repo_files(repo_id: int, db: Session) -> list[str]:
+    """Return all file paths ingested for a repository, sorted alphabetically."""
+    rows = db.execute(
+        select(Files.file_path)
+        .where(Files.repo_id == repo_id)
+        .order_by(Files.file_path)
+    ).scalars().all()
+    return list(rows)
+
+
+def retrieve_chunks(query: str, repo_id: int, db: Session, top_k: int = 15) -> list[dict]:
     """
     Retrieve relevant chunks from the database based on the query and repository ID.
     

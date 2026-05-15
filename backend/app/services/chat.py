@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, update as sql_update, func
 
 from app.db.models import Messages, Repositories, Sessions
-from app.rag.retriever import retrieve_chunks
+from app.rag.retriever import retrieve_chunks, list_repo_files
 from app.rag.prompt_builder import build_prompt
 from app.rag.llm_client import stream_responses, get_response
 from app.config import MessageRole
@@ -91,7 +91,7 @@ def stream_chat(
     repo_id: int,
     question: str,
     db: Session,
-    top_k: int = 8,
+    top_k: int = 15,
     session_id: int | None = None,
 ) -> Generator[str, None, None]:
     """Main entry point for the chat pipeline.
@@ -131,7 +131,8 @@ def stream_chat(
 
     repo = db.get(Repositories, repo_id)
     repo_name = f"{repo.owner}/{repo.name}" if repo else None
-    system, user_message = build_prompt(question, chunks, repo_name=repo_name)
+    file_listing = list_repo_files(repo_id, db)
+    system, user_message = build_prompt(question, chunks, repo_name=repo_name, file_listing=file_listing)
 
     # Stream response and collect full text for saving
     full_response = []
@@ -148,7 +149,7 @@ def chat(
     repo_id: int,
     question: str,
     db: Session,
-    top_k: int = 8,
+    top_k: int = 15,
 ) -> str:
     """Non-streaming version of the chat pipeline. Useful for testing.
 
@@ -168,7 +169,8 @@ def chat(
     chunks = retrieve_chunks(question, repo_id, db, top_k=top_k)
     repo = db.get(Repositories, repo_id)
     repo_name = f"{repo.owner}/{repo.name}" if repo else None
-    system, user_message = build_prompt(question, chunks, repo_name=repo_name)
+    file_listing = list_repo_files(repo_id, db)
+    system, user_message = build_prompt(question, chunks, repo_name=repo_name, file_listing=file_listing)
     response = get_response(system, user_message)
 
     save_message(session.id, MessageRole.ASSISTANT, response, db)
