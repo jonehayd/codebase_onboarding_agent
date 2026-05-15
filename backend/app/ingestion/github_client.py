@@ -26,23 +26,43 @@ def fetch_repo(owner: str, name: str, token: str = None):
         raise RuntimeError(f"Error fetching repository {owner}/{name}: {e}") from e
     
 # Recursively fetch files from the repository, filtering by size and type
-def fetch_files(repo: "github.Repository.Repository", path=""):
+def fetch_files(
+    repo: "github.Repository.Repository",
+    path: str = "",
+    _state: dict | None = None,
+    repo_id: int | None = None,
+):
     """Recursively fetch files from a GitHub repository, filtering by size and type.
 
     Args:
         repo (github.Repository.Repository): The repository object.
         path (str, optional): The path within the repository to start fetching from. Defaults to "".
+        _state (dict, optional): Internal mutable state for tracking file count across recursion.
+        repo_id (int, optional): If provided, cancellation is checked via progress_store each directory.
 
     Returns:
         list: A list of dictionaries containing the file path, content, size, and language.
     """
-    
+    if _state is None:
+        _state = {"count": 0}
+
+    # Honour cancel requests between directories
+    if repo_id is not None:
+        from app.services.progress_store import is_cancelled, IngestionCancelledError
+        if is_cancelled(repo_id):
+            raise IngestionCancelledError()
+
+    if _state["count"] >= settings.max_files_per_repo:
+        return []
+
     try:
         contents = repo.get_contents(path)
         files = []
         for item in contents:
+            if _state["count"] >= settings.max_files_per_repo:
+                break
             if item.type == "dir":
-                files.extend(fetch_files(repo, item.path))  # Recurse into subdirectory
+                files.extend(fetch_files(repo, item.path, _state, repo_id))
             else:
                 if should_include(item.path, item.size):
                     raw = item.decoded_content  # file contents as bytes
@@ -53,6 +73,7 @@ def fetch_files(repo: "github.Repository.Repository", path=""):
                         "size": item.size,
                         "language": item.path.rsplit(".", 1)[-1] if "." in item.path else "unknown"
                     })
+                    _state["count"] += 1
         return files
     except github.RateLimitExceededException:
         print(f"GitHub API rate limit exceeded while fetching files from {repo.full_name} at path '{path}'")

@@ -2,7 +2,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.config import RepoStatus
+from app.config import RepoStatus, settings
 from app.db.models import CodeChunks, Files, Repositories
 from app.ingestion.chunker import extract_chunks
 from app.ingestion.github_client import fetch_files, fetch_files_by_paths, fetch_repo
@@ -228,8 +228,25 @@ def ingest_repo(repo_id: int, owner: str, name: str, db: Session, gh_repo=None) 
         if gh_repo is None:
             gh_repo = fetch_repo(owner, name)
 
+        # Reject repositories that are clearly too large to process in reasonable time.
+        # gh_repo.size is reported by GitHub in KB.
+        if gh_repo.size > settings.max_repo_size_kb:
+            msg = (
+                f"Repository is too large to ingest ({gh_repo.size // 1024} MB). "
+                f"Maximum allowed size is {settings.max_repo_size_kb // 1024} MB."
+            )
+            logger.warning("Rejecting %s/%s: %s", owner, name, msg)
+            progress_store.mark_failed(repo_id, error_message=msg)
+            repo = db.get(Repositories, repo_id)
+            if repo:
+                repo.status = RepoStatus.FAILED
+                db.commit()
+            return
+
         latest_hash = get_latest_commit_hash(gh_repo)
-        files = fetch_files(gh_repo)
+
+        # fetch_files checks cancellation between directories and stops at max_files_per_repo
+        files = fetch_files(gh_repo, repo_id=repo_id)
 
         if not files:
             logger.warning("No files fetched for %s/%s; marking as failed", owner, name)

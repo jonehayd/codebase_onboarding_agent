@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.routes.auth import router as auth_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.routes.share import router as share_router
+from app.config import settings
 from app.core.logging import setup_logging
 from app.core.errors import (
     http_exception_handler,
