@@ -45,7 +45,13 @@ _REPO_RE = re.compile(r"^[a-zA-Z0-9_-][a-zA-Z0-9._-]{0,99}$")
 
 
 def _parse_github_url(url: str) -> tuple[str, str]:
-    parsed = urlparse(url.strip())
+    raw = url.strip()
+
+    # Accept shorthand "owner/repo" with no scheme or host
+    if not raw.startswith(("http://", "https://")):
+        raw = f"https://github.com/{raw}"
+
+    parsed = urlparse(raw)
 
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(

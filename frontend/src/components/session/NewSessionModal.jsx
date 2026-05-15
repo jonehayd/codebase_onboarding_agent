@@ -9,10 +9,26 @@ export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
 
   if (!isOpen) return null;
 
+  function normalizeUrl(value) {
+    const v = value.trim();
+    if (!v) return v;
+    // If it looks like owner/repo (no scheme, no github.com), expand it
+    if (!v.startsWith("http://") && !v.startsWith("https://")) {
+      return `https://github.com/${v}`;
+    }
+    return v;
+  }
+
   function validateUrl(value) {
     if (!value.trim()) return "This field cannot be empty";
+    const normalized = normalizeUrl(value);
     try {
-      new URL(value.trim());
+      const u = new URL(normalized);
+      if (!u.hostname.endsWith("github.com"))
+        return "URL must point to github.com";
+      const parts = u.pathname.replace(/^\/|\/$/, "").split("/");
+      if (parts.length !== 2 || !parts[0] || !parts[1])
+        return "Expected format: owner/repo";
       return null;
     } catch {
       return "Not a valid URL";
@@ -32,7 +48,7 @@ export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
       return;
     }
     setErrors({});
-    onSubmit?.({ url: url.trim(), title: title.trim() || null });
+    onSubmit?.({ url: normalizeUrl(url), title: title.trim() || null });
   }
 
   return (
@@ -67,7 +83,7 @@ export default function NewSessionModal({ isOpen, onClose, onSubmit }) {
                 type="text"
                 value={url}
                 onChange={handleUrlChange}
-                placeholder="https://github.com/owner/repo"
+                placeholder="https://github.com/owner/repo or owner/repo"
                 className="flex-1 text-text placeholder-placeholder outline-none font-mono bg-transparent"
               />
               <FaLink className="text-text-subtle shrink-0" />
