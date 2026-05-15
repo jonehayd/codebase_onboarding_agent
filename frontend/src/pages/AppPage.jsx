@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import AppLayout from "@components/layout/AppLayout";
-import { listSessions, createSession as apiCreateSession, updateSession, deleteSession } from "@api/sessions";
+import {
+  listSessions,
+  createSession as apiCreateSession,
+  updateSession,
+  deleteSession,
+  reingestSession,
+} from "@api/sessions";
 import { streamChat, getChatHistory } from "@api/chat";
 import { listFiles, getFileContent as apiGetFileContent } from "@api/files";
 
@@ -99,7 +105,34 @@ export default function AppPage() {
 
   const handleIngestionComplete = useCallback(() => {
     setSessions((prev) =>
-      prev.map((s) => (s.id === selectedId ? { ...s, status: "completed" } : s)),
+      prev.map((s) =>
+        s.id === selectedId ? { ...s, status: "completed" } : s,
+      ),
+    );
+  }, [selectedId]);
+
+  const handleIngestionFailed = useCallback(
+    (errorMessage) => {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === selectedId
+            ? { ...s, status: "failed", errorMessage: errorMessage ?? null }
+            : s,
+        ),
+      );
+    },
+    [selectedId],
+  );
+
+  const handleRetryIngestion = useCallback(async () => {
+    if (!selectedId) return;
+    await reingestSession(selectedId);
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === selectedId
+          ? { ...s, status: "pending", errorMessage: null }
+          : s,
+      ),
     );
   }, [selectedId]);
 
@@ -173,6 +206,8 @@ export default function AppPage() {
       onSelectSession={handleSelectSession}
       onCreateSession={handleCreateSession}
       onIngestionComplete={handleIngestionComplete}
+      onIngestionFailed={handleIngestionFailed}
+      onRetryIngestion={handleRetryIngestion}
       onRenameSession={handleRenameSession}
       onDeleteSession={handleDeleteSession}
     />

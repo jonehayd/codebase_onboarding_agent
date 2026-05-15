@@ -261,6 +261,7 @@ def get_session_status(
         percent = prog["percent"]
         files_total = prog["files_total"] or file_count
         elapsed_seconds = prog["elapsed_seconds"]
+        error_message = prog.get("error_message")
     else:
         _stage_map = {
             "pending": "fetching_files",
@@ -272,6 +273,7 @@ def get_session_status(
         percent = 100 if repo.status == "completed" else 0
         files_total = file_count
         elapsed_seconds = None
+        error_message = None
 
     return {
         "session_id": session.id,
@@ -284,6 +286,7 @@ def get_session_status(
         "vector_count": vector_count,
         "elapsed_seconds": elapsed_seconds,
         "commit_hash": repo.commit_hash,
+        "error_message": error_message,
     }
 
 

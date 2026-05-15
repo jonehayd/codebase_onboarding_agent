@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LuChevronsRight, LuX } from "react-icons/lu";
+import { LuCircleAlert, LuChevronsRight, LuX } from "react-icons/lu";
 
 import Header from "./Header";
 import Panel from "./Panel";
@@ -34,6 +34,34 @@ function makeResizer(setter, min, max, reversed = false) {
 
 const PROCESSING_STATUSES = new Set(["pending", "processing"]);
 
+function RepoErrorPanel({ errorMessage, onRetry, retrying }) {
+  return (
+    <div className="flex-1 h-full flex flex-col items-center justify-center gap-6 p-8 bg-surface">
+      <div
+        className="w-16 h-16 rounded-full flex items-center justify-center"
+        style={{ border: "2px solid var(--color-error)" }}
+      >
+        <LuCircleAlert size={28} style={{ color: "var(--color-error)" }} />
+      </div>
+      <div className="text-center flex flex-col gap-2">
+        <p className="text-xs uppercase tracking-widest text-text-subtle">
+          Ingestion failed
+        </p>
+        <p className="text-sm font-mono text-text max-w-xs">
+          {errorMessage ?? "Repository not found or is private"}
+        </p>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={retrying}
+        className="px-8 py-2.5 bg-text text-black text-sm font-semibold uppercase tracking-widest cursor-pointer hover:bg-text-muted transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {retrying ? "Retrying\u2026" : "Retry Ingestion"}
+      </button>
+    </div>
+  );
+}
+
 export default function AppLayout({
   sessions = [],
   activeSession = null,
@@ -46,9 +74,21 @@ export default function AppLayout({
   onSelectSession,
   onCreateSession,
   onIngestionComplete,
+  onIngestionFailed,
+  onRetryIngestion,
   onRenameSession,
   onDeleteSession,
 }) {
+  const [retrying, setRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      await onRetryIngestion?.();
+    } finally {
+      setRetrying(false);
+    }
+  };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fileTreeOpen, setFileTreeOpen] = useState(true);
 
@@ -131,6 +171,13 @@ export default function AppLayout({
               <IngestionView
                 sessionId={activeSession.id}
                 onComplete={onIngestionComplete}
+                onFailed={onIngestionFailed}
+              />
+            ) : activeSession?.status === "failed" ? (
+              <RepoErrorPanel
+                errorMessage={activeSession.errorMessage}
+                onRetry={handleRetry}
+                retrying={retrying}
               />
             ) : (
               <ChatPanel

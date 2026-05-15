@@ -174,7 +174,7 @@ function Stat({ label, value }) {
 
 // --- Main view (embeddable — accepts sessionId as a prop) ---
 
-export function IngestionView({ sessionId, onComplete }) {
+export function IngestionView({ sessionId, onComplete, onFailed }) {
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState(null);
   const [cancelling, setCancelling] = useState(false);
@@ -210,6 +210,9 @@ export function IngestionView({ sessionId, onComplete }) {
             // Delay so the checkmark animation finishes before transitioning
             setTimeout(() => onComplete?.(), 1500);
           }
+          if (data.status === "failed") {
+            onFailed?.(data.error_message ?? null);
+          }
         }
       } catch (e) {
         if (active) setFetchError(e.message);
@@ -223,7 +226,7 @@ export function IngestionView({ sessionId, onComplete }) {
       active = false;
       clearInterval(intervalId);
     };
-  }, [sessionId, retryKey]);
+  }, [sessionId, retryKey, onComplete, onFailed]);
 
   const handleCancel = useCallback(async () => {
     setCancelling(true);
@@ -290,7 +293,8 @@ export function IngestionView({ sessionId, onComplete }) {
             : isCancelled
               ? "Cancelled by user"
               : isFailed
-                ? "An error occurred during ingestion"
+                ? (status?.error_message ??
+                  "An error occurred during ingestion")
                 : currentStage === "fetching_files"
                   ? "Fetching repository files…"
                   : currentStage === "parsing_code"
