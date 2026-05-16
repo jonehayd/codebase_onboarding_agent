@@ -522,7 +522,7 @@ def get_file_content(
         token = current_user.github_token or settings.github_token
         g = Github(auth=Auth.Token(token))
         gh_repo = g.get_repo(f"{repo.owner}/{repo.name}")
-        gh_file = gh_repo.get_contents(file.file_path)
+        gh_file = gh_repo.get_contents(file.file_path, ref=repo.commit_hash)
         content = gh_file.decoded_content.decode("utf-8", errors="ignore")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch file from GitHub: {e}")

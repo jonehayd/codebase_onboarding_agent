@@ -1,6 +1,7 @@
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy import delete as sql_delete
 
 from app.config import RepoStatus, settings
 from app.db.models import CodeChunks, Files, Repositories
@@ -84,8 +85,8 @@ def get_latest_commit_hash(gh_repo) -> str:
     return branch.commit.sha
 
 
-def get_changed_file_paths(gh_repo, old_sha: str, new_sha: str) -> set[str]:
-    """Get paths of files added or modified between two commits.
+def get_changed_file_paths(gh_repo, old_sha: str, new_sha: str) -> tuple[set[str], set[str]]:
+    """Get paths of files changed between two commits.
 
     Args:
         gh_repo: The PyGitHub repository object.
@@ -93,11 +94,22 @@ def get_changed_file_paths(gh_repo, old_sha: str, new_sha: str) -> set[str]:
         new_sha (str): The newer commit SHA.
 
     Returns:
-        set[str]: File paths that were added or modified.
+        tuple[set[str], set[str]]: (paths_to_ingest, paths_to_delete)
     """
-    
     comparison = gh_repo.compare(old_sha, new_sha)
-    return {f.filename for f in comparison.files if f.status in ("added", "modified")}
+    paths_to_ingest: set[str] = set()
+    paths_to_delete: set[str] = set()
+    for f in comparison.files:
+        if f.status in ("added", "modified"):
+            paths_to_ingest.add(f.filename)
+            paths_to_delete.add(f.filename)
+        elif f.status == "removed":
+            paths_to_delete.add(f.filename)
+        elif f.status == "renamed":
+            paths_to_ingest.add(f.filename)
+            paths_to_delete.add(f.previous_filename)
+            paths_to_delete.add(f.filename)
+    return paths_to_ingest, paths_to_delete
 
 
 _PLAIN_TEXT_CHUNK_LINES = 80
@@ -304,15 +316,42 @@ def ingest_changed_files(
 
         progress_store.update_progress(repo_id, stage="fetching_files", percent=0)
 
-        changed_paths = get_changed_file_paths(gh_repo, old_sha, new_sha)
-        if not changed_paths:
+        paths_to_ingest, paths_to_delete = get_changed_file_paths(gh_repo, old_sha, new_sha)
+        if not paths_to_ingest and not paths_to_delete:
             logger.info("No changed files for %s/%s; already up to date", owner, name)
             update_repo_status(repo_id, RepoStatus.COMPLETED, db)
             progress_store.mark_completed(repo_id)
             return
 
-        logger.info("Re-ingesting %d changed file(s) for %s/%s", len(changed_paths), owner, name)
-        files = fetch_files_by_paths(gh_repo, changed_paths)
+        # Delete stale Files (and their CodeChunks via cascade) for all affected paths.
+        if paths_to_delete:
+            stale_file_ids = db.execute(
+                select(Files.id).where(
+                    Files.repo_id == repo_id,
+                    Files.file_path.in_(paths_to_delete),
+                )
+            ).scalars().all()
+            if stale_file_ids:
+                db.execute(
+                    sql_delete(CodeChunks).where(CodeChunks.file_id.in_(stale_file_ids))
+                )
+                db.execute(
+                    sql_delete(Files).where(Files.id.in_(stale_file_ids))
+                )
+                db.commit()
+
+        if not paths_to_ingest:
+            repo = db.get(Repositories, repo_id)
+            if repo:
+                repo.commit_hash = new_sha
+                repo.status = RepoStatus.COMPLETED
+                db.commit()
+            progress_store.mark_completed(repo_id)
+            logger.info("Incremental ingestion complete for %s/%s at %s (deletions only)", owner, name, new_sha[:7])
+            return
+
+        logger.info("Re-ingesting %d changed file(s) for %s/%s", len(paths_to_ingest), owner, name)
+        files = fetch_files_by_paths(gh_repo, paths_to_ingest)
         progress_store.update_progress(repo_id, files_total=len(files))
         _ingest_files(repo_id, files, db)
 
