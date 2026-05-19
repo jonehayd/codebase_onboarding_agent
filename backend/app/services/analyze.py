@@ -1,12 +1,13 @@
+import asyncio
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, insert
 from sqlalchemy import delete as sql_delete
 
 from app.config import RepoStatus, settings
 from app.db.models import CodeChunks, Files, Repositories
 from app.ingestion.chunker import extract_chunks
-from app.ingestion.github_client import fetch_files, fetch_files_by_paths, fetch_repo
+from app.ingestion.github_client import fetch_repo, get_file_tree, fetch_file_content
 from app.ingestion.parser import parse_file
 from app.rag.embeddings import embed_chunks
 from app.services import progress_store
@@ -137,79 +138,122 @@ def _plain_text_chunks(file: dict) -> list[dict]:
     return chunks
 
 
-def _ingest_files(repo_id: int, files: list[dict], db: Session) -> None:
-    """Parse then embed a list of files, tracking progress and honouring cancel requests.
+def _fetch_and_parse(gh_repo, path: str) -> tuple[dict, list] | None:
+    """Fetch a file from GitHub and parse it into chunks. Runs in a worker thread."""
+    file = fetch_file_content(gh_repo, path)
+    if file is None:
+        return None
+    parsed = parse_file(file["path"], file["content"])
+    chunks = extract_chunks(parsed) if parsed is not None else _plain_text_chunks(file)
+    return (file, chunks) if chunks else None
 
-    Phase 1 (0–50%): parse all files and collect chunks in memory.
-    Phase 2 (50–100%): embed each file's chunks and persist to the database.
-    """
-    total = len(files)
 
-    # --- Phase 1: parse ---
-    parsed_items: list[tuple[dict, list]] = []
-    for i, file in enumerate(files):
-        if progress_store.is_cancelled(repo_id):
-            raise IngestionCancelledError()
+_FETCH_WORKERS = 16
+_EMBED_BATCH_SIZE = 300
+_SENTINEL = object()
 
-        progress_store.update_progress(
-            repo_id,
-            stage="parsing_code",
-            files_processed=i,
-            files_total=total,
-            percent=int((i / max(total, 1)) * 50),
-        )
 
-        parsed = parse_file(file["path"], file["content"])
-        if parsed is None:
-            chunks = _plain_text_chunks(file)
-        else:
-            chunks = extract_chunks(parsed)
-        if chunks:
-            parsed_items.append((file, chunks))
+async def _embed_and_persist_batch(pending: list[tuple[int, dict]], db: Session) -> int:
+    """Embed a cross-file batch of chunks and bulk-insert into code_chunks. Returns vector count."""
+    chunks = [c for _, c in pending]
+    vectors = await asyncio.to_thread(embed_chunks, chunks)
+    db.execute(
+        insert(CodeChunks),
+        [
+            {
+                "file_id": file_id,
+                "chunk_type": chunk["chunk_type"],
+                "name": chunk["name"],
+                "content": chunk["content"],
+                "start_line": chunk["start_line"],
+                "end_line": chunk["end_line"],
+                "embedding": vector,
+            }
+            for (file_id, _), chunk, vector in zip(pending, chunks, vectors)
+        ],
+    )
+    return len(vectors)
 
-    # --- Phase 2: embed and persist ---
-    total_parsed = len(parsed_items)
+
+async def _run_pipeline_async(repo_id: int, gh_repo, paths: list[str], db: Session) -> None:
+    total = len(paths)
+    files_done = 0
     vector_count = 0
 
-    for i, (file, chunks) in enumerate(parsed_items):
-        if progress_store.is_cancelled(repo_id):
-            raise IngestionCancelledError()
+    progress_store.update_progress(
+        repo_id,
+        stage="processing",
+        files_total=total,
+        files_processed=0,
+        percent=0,
+    )
 
-        progress_store.update_progress(
-            repo_id,
-            stage="generating_embeddings",
-            files_processed=i,
-            files_total=total_parsed,
-            percent=50 + int((i / max(total_parsed, 1)) * 50),
-        )
+    queue: asyncio.Queue = asyncio.Queue(maxsize=20)
 
-        db_file = Files(
-            repo_id=repo_id,
-            file_path=file["path"],
-            language=file["language"],
-            size_bytes=file["size"],
-        )
-        db.add(db_file)
-        db.commit()
-        db.refresh(db_file)
+    async def producer() -> None:
+        sem = asyncio.Semaphore(_FETCH_WORKERS)
 
-        vectors = embed_chunks(chunks)
+        async def fetch_one(path: str) -> None:
+            async with sem:
+                result = await asyncio.to_thread(_fetch_and_parse, gh_repo, path)
+            await queue.put(result)
 
-        for chunk, vector in zip(chunks, vectors):
-            db_chunk = CodeChunks(
-                file_id=db_file.id,
-                chunk_type=chunk["chunk_type"],
-                name=chunk["name"],
-                content=chunk["content"],
-                start_line=chunk["start_line"],
-                end_line=chunk["end_line"],
-                embedding=vector,
+        await asyncio.gather(*[fetch_one(p) for p in paths])
+        await queue.put(_SENTINEL)
+
+    async def consumer() -> None:
+        nonlocal files_done, vector_count
+        pending: list[tuple[int, dict]] = []
+
+        while True:
+            if progress_store.is_cancelled(repo_id):
+                raise IngestionCancelledError()
+
+            item = await queue.get()
+            if item is _SENTINEL:
+                break
+
+            files_done += 1
+            if item is not None:
+                file, chunks = item
+                chunks = [c for c in chunks if c["chunk_type"] != "imports"]
+                if chunks:
+                    db_file = Files(
+                        repo_id=repo_id,
+                        file_path=file["path"],
+                        language=file["language"],
+                        size_bytes=file["size"],
+                    )
+                    db.add(db_file)
+                    db.flush()
+
+                    for chunk in chunks:
+                        pending.append((db_file.id, chunk))
+
+                    if len(pending) >= _EMBED_BATCH_SIZE:
+                        count = await _embed_and_persist_batch(pending, db)
+                        vector_count += count
+                        pending = []
+
+            progress_store.update_progress(
+                repo_id,
+                files_processed=files_done,
+                percent=int(files_done / max(total, 1) * 100),
+                vector_count=vector_count,
             )
-            db.add(db_chunk)
-            vector_count += 1
+
+        if pending:
+            count = await _embed_and_persist_batch(pending, db)
+            vector_count += count
 
         db.commit()
-        progress_store.update_progress(repo_id, vector_count=vector_count)
+
+    await asyncio.gather(producer(), consumer())
+
+
+def _run_pipeline(repo_id: int, gh_repo, paths: list[str], db: Session) -> None:
+    """Pipelined ingestion: concurrent fetching with cross-file batched embedding."""
+    asyncio.run(_run_pipeline_async(repo_id, gh_repo, paths, db))
 
 
 def ingest_repo(repo_id: int, owner: str, name: str, db: Session, gh_repo=None) -> None:
@@ -257,18 +301,16 @@ def ingest_repo(repo_id: int, owner: str, name: str, db: Session, gh_repo=None) 
 
         latest_hash = get_latest_commit_hash(gh_repo)
 
-        # fetch_files checks cancellation between directories and stops at max_files_per_repo
-        files = fetch_files(gh_repo, repo_id=repo_id)
+        paths = get_file_tree(gh_repo, latest_hash)
 
-        if not files:
+        if not paths:
             logger.warning("No files fetched for %s/%s; marking as failed", owner, name)
             progress_store.mark_failed(repo_id)
             update_repo_status(repo_id, RepoStatus.FAILED, db)
             return
 
-        progress_store.update_progress(repo_id, files_total=len(files))
-        logger.info("Ingesting %d file(s) for %s/%s", len(files), owner, name)
-        _ingest_files(repo_id, files, db)
+        logger.info("Ingesting %d file(s) for %s/%s", len(paths), owner, name)
+        _run_pipeline(repo_id, gh_repo, paths, db)
 
         repo = db.get(Repositories, repo_id)
         if repo:
@@ -351,9 +393,7 @@ def ingest_changed_files(
             return
 
         logger.info("Re-ingesting %d changed file(s) for %s/%s", len(paths_to_ingest), owner, name)
-        files = fetch_files_by_paths(gh_repo, paths_to_ingest)
-        progress_store.update_progress(repo_id, files_total=len(files))
-        _ingest_files(repo_id, files, db)
+        _run_pipeline(repo_id, gh_repo, list(paths_to_ingest), db)
 
         repo = db.get(Repositories, repo_id)
         if repo:

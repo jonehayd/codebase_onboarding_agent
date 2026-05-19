@@ -73,7 +73,7 @@ class Files(Base):
     
 class CodeChunks(Base):
     __tablename__ = "code_chunks"
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), index=True)
     chunk_type: Mapped[str]
@@ -82,4 +82,11 @@ class CodeChunks(Base):
     start_line: Mapped[int]
     end_line: Mapped[int]
     embedding = mapped_column(Vector(settings.embedding_dimensions), nullable=True)
+
+class RevokedTokens(Base):
+    __tablename__ = "revoked_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(index=True)
     

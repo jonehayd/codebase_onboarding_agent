@@ -1,7 +1,12 @@
 from openai import OpenAI
+import tiktoken
 from app.config import settings
 
 client = OpenAI(api_key=settings.open_ai_key)
+
+_tokenizer = tiktoken.get_encoding("cl100k_base")
+_MAX_EMBED_TOKENS = 8000  # hard limit is 8192; leave a small margin
+
 
 def build_embed_text(chunk: dict) -> str:
     """Build the text to be embedded for a given code chunk.
@@ -13,13 +18,19 @@ def build_embed_text(chunk: dict) -> str:
         str: The text to be embedded.
     """
     
-    # Build the text to be embedded by combining the chunk type, name, and content
     parts = []
     if chunk.get("name"):
         parts.append(f"{chunk['chunk_type']} {chunk['name']}")
     if chunk.get("content"):
         parts.append(chunk["content"])
-    return "\n".join(parts)
+    text = "\n".join(parts)
+    tokens = _tokenizer.encode(text)
+    if len(tokens) > _MAX_EMBED_TOKENS:
+        text = _tokenizer.decode(tokens[:_MAX_EMBED_TOKENS])
+    return text
+
+_MAX_BATCH_TOKENS = 250_000  # OpenAI limit is 300k; leave headroom for safety
+
 
 def embed_chunks(chunks: list[dict]) -> list[list[float]]:
     """Generate embeddings for a list of code chunks.
@@ -32,15 +43,28 @@ def embed_chunks(chunks: list[dict]) -> list[list[float]]:
     """
     if not chunks:
         return []
-    
+
     texts = [build_embed_text(chunk) for chunk in chunks]
-    
-    response = client.embeddings.create(
-        input=texts,
-        model=settings.embedding_model
-    )
-    
-    return [data.embedding for data in response.data]
+
+    results: list[list[float]] = []
+    batch: list[str] = []
+    batch_tokens = 0
+
+    for text in texts:
+        token_count = len(_tokenizer.encode(text))
+        if batch and batch_tokens + token_count > _MAX_BATCH_TOKENS:
+            response = client.embeddings.create(input=batch, model=settings.embedding_model)
+            results.extend(d.embedding for d in response.data)
+            batch = []
+            batch_tokens = 0
+        batch.append(text)
+        batch_tokens += token_count
+
+    if batch:
+        response = client.embeddings.create(input=batch, model=settings.embedding_model)
+        results.extend(d.embedding for d in response.data)
+
+    return results
 
 def embed_query(query: str) -> list[float]:
     """Generate an embedding for a query string.

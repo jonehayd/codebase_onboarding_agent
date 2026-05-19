@@ -1,7 +1,10 @@
 from github import Auth, Github
 import github
+import logging
 from app.config import settings
 from app.ingestion.filter import should_include
+
+logger = logging.getLogger(__name__)
 
 # Fetch a requested repository using the GitHub API
 def fetch_repo(owner: str, name: str, token: str = None):
@@ -15,7 +18,10 @@ def fetch_repo(owner: str, name: str, token: str = None):
         github.Repository.Repository: The fetched repository object, or None if an error occurred.
     """    
     
-    auth = Auth.Token(token or settings.github_token)
+    resolved_token = token or settings.github_token
+    if not resolved_token:
+        raise ValueError("No GitHub token available. Provide a user token or set GITHUB_TOKEN.")
+    auth = Auth.Token(resolved_token)
     g = Github(auth=auth)
     try:
         repo = g.get_repo(f"{owner}/{name}")
@@ -48,9 +54,11 @@ def fetch_files(
 
     # Honour cancel requests between directories
     if repo_id is not None:
-        from app.services.progress_store import is_cancelled, IngestionCancelledError
+        from app.services.progress_store import is_cancelled, update_progress, IngestionCancelledError
         if is_cancelled(repo_id):
             raise IngestionCancelledError()
+    else:
+        update_progress = None
 
     if _state["count"] >= settings.max_files_per_repo:
         return []
@@ -74,6 +82,8 @@ def fetch_files(
                         "language": item.path.rsplit(".", 1)[-1] if "." in item.path else "unknown"
                     })
                     _state["count"] += 1
+                    if update_progress is not None:
+                        update_progress(repo_id, files_processed=_state["count"])
         return files
     except github.RateLimitExceededException:
         print(f"GitHub API rate limit exceeded while fetching files from {repo.full_name} at path '{path}'")
@@ -110,5 +120,47 @@ def fetch_files_by_paths(repo: "github.Repository.Repository", paths: set[str]) 
         except github.UnknownObjectException:
             pass  # File was deleted in the diff; skip it
         except Exception as e:
-            print(f"Error fetching {path} from {repo.full_name}: {e}")
+            logger.warning("Error fetching %s from %s: %s", path, repo.full_name, e)
     return files
+
+
+def get_file_tree(gh_repo, commit_sha: str) -> list[str]:
+    """Return ingestable file paths via the git tree API (single API call).
+
+    Much faster than recursive get_contents() for large repos.
+    Falls back to an empty list on error; caller should treat that as fatal.
+    """
+    try:
+        git_commit = gh_repo.get_git_commit(commit_sha)
+        tree = gh_repo.get_git_tree(git_commit.tree.sha, recursive=True)
+        paths = []
+        for item in tree.tree:
+            if item.type == "blob" and should_include(item.path, item.size or 0):
+                paths.append(item.path)
+                if len(paths) >= settings.max_files_per_repo:
+                    break
+        if tree.truncated:
+            logger.warning(
+                "Git tree truncated for %s; only the first %d files will be ingested",
+                gh_repo.full_name, len(paths),
+            )
+        return paths
+    except Exception as e:
+        logger.error("Failed to fetch git tree for %s: %s", gh_repo.full_name, e)
+        return []
+
+
+def fetch_file_content(gh_repo, path: str) -> dict | None:
+    """Fetch and decode content for a single file. Returns None on any error."""
+    try:
+        item = gh_repo.get_contents(path)
+        text = item.decoded_content.decode("utf-8", errors="ignore")
+        return {
+            "path": path,
+            "content": text,
+            "size": item.size,
+            "language": path.rsplit(".", 1)[-1] if "." in path else "unknown",
+        }
+    except Exception as e:
+        logger.warning("Failed to fetch %s from %s: %s", path, gh_repo.full_name, e)
+        return None

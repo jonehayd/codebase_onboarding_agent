@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Environment variables
-    github_token: str
+    github_token: str | None = None
     open_ai_key: str
     anthropic_key: str
     database_url: str
@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     github_client_id: str
     github_client_secret: str
     
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = "http://localhost:5173"
+    redis_url: str | None = None
 
     # Session settings
     max_sessions_per_user: int = 5
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     
     # LLM settings
     anthropic_model: str = "claude-haiku-4-5"
-    max_response_tokens: int = 2048
+    max_response_tokens: int = 1024
     temperature: float = 0.7    
 
     model_config = SettingsConfigDict(env_file=".env")

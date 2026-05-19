@@ -4,8 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -14,6 +12,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.routes.share import router as share_router
 from app.config import settings
+from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.core.errors import (
     http_exception_handler,
@@ -23,11 +22,10 @@ from app.core.errors import (
 )
 from app.db.database import init_db, SessionLocal
 from app.services.sessions import purge_stale_sessions
+from app.utility.auth import purge_expired_revoked_tokens
 
 setup_logging()
 logger = logging.getLogger(__name__)
-
-limiter = Limiter(key_func=get_remote_address)
 
 async def _session_cleanup_loop():
     while True:
@@ -36,6 +34,9 @@ async def _session_cleanup_loop():
             count = await asyncio.to_thread(purge_stale_sessions, db)
             if count:
                 logger.info("Session cleanup: purged %d stale session(s)", count)
+            revoked = await asyncio.to_thread(purge_expired_revoked_tokens, db)
+            if revoked:
+                logger.info("Token cleanup: purged %d expired revoked token(s)", revoked)
         finally:
             db.close()
         await asyncio.sleep(24 * 60 * 60)

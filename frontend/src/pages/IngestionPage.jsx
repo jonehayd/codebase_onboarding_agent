@@ -8,9 +8,8 @@ import {
 } from "@api/sessions";
 
 const STAGES = [
-  { key: "fetching_files", label: "Fetching all files" },
-  { key: "parsing_code", label: "Parsing code" },
-  { key: "generating_embeddings", label: "Generating embeddings" },
+  { key: "fetching_files", label: "Fetching file tree" },
+  { key: "processing", label: "Parsing, embedding & storing" },
 ];
 
 const ACTIVE_STATUSES = new Set(["pending", "processing"]);
@@ -296,12 +295,10 @@ export function IngestionView({ sessionId, onComplete, onFailed }) {
                 ? (status?.error_message ??
                   "An error occurred during ingestion")
                 : currentStage === "fetching_files"
-                  ? "Fetching repository files…"
-                  : currentStage === "parsing_code"
-                    ? "Parsing source code…"
-                    : currentStage === "generating_embeddings"
-                      ? "Generating embeddings…"
-                      : "Preparing…"}
+                  ? "Fetching repository file tree…"
+                  : currentStage === "processing"
+                    ? "Parsing, embedding & storing files…"
+                    : "Preparing…"}
         </p>
 
         {/* Checklist */}

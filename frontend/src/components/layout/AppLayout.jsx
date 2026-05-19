@@ -112,6 +112,8 @@ export default function AppLayout({
 
   const [openFile, setOpenFile] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [createError, setCreateError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleFileClick = async (file) => {
     const filename = file.file_path.split("/").pop();
@@ -119,9 +121,29 @@ export default function AppLayout({
     setOpenFile({ id: file.id, filename, content });
   };
 
-  const handleModalSubmit = async (data) => {
+  const handleModalClose = () => {
     setModalOpen(false);
-    if (onCreateSession) await onCreateSession(data);
+    setCreateError(null);
+  };
+
+  const handleModalSubmit = async (data) => {
+    setSubmitting(true);
+    setCreateError(null);
+    try {
+      if (onCreateSession) await onCreateSession(data);
+      setModalOpen(false);
+    } catch (err) {
+      let message = err.message;
+      try {
+        const parsed = JSON.parse(message);
+        message = parsed?.error?.message ?? parsed?.detail ?? message;
+      } catch {
+        // keep raw message
+      }
+      setCreateError(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const effectiveSidebarWidth = sidebarOpen ? sidebarWidth : COLLAPSED_W;
@@ -232,9 +254,11 @@ export default function AppLayout({
 
       <NewSessionModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={handleModalClose}
         onSubmit={handleModalSubmit}
         hasRepoAccess={hasRepoAccess}
+        error={createError}
+        submitting={submitting}
       />
     </>
   );

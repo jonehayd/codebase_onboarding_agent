@@ -85,7 +85,7 @@ export default function AppPage() {
     const raw = await apiCreateSession(url, title);
     const session = {
       id: raw.session_id,
-      title: raw.title ?? `${raw.owner}/${raw.name}`,
+      title: raw.title ?? title ?? `${raw.owner}/${raw.name}`,
       repoName: `${raw.owner}/${raw.name}`,
       status: raw.status ?? "pending",
       lastActive: raw.created_at,

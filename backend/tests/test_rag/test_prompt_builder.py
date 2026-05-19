@@ -27,34 +27,34 @@ CHUNK_WITHOUT_NAME = {
 # --- build_prompt tests ---
 
 class TestBuildPrompt:
-    def test_returns_a_string(self):
+    def test_returns_a_tuple(self):
         result = build_prompt("what is this?", [CHUNK_WITH_NAME])
-        assert isinstance(result, str)
+        assert isinstance(result, tuple) and len(result) == 2
 
     def test_contains_the_query(self):
         query = "how does authentication work?"
-        result = build_prompt(query, [CHUNK_WITH_NAME])
-        assert query in result
+        system, user_message = build_prompt(query, [CHUNK_WITH_NAME])
+        assert query in user_message
 
     def test_contains_system_instructions(self):
-        result = build_prompt("query", [CHUNK_WITH_NAME])
-        assert "expert software engineer" in result
+        system, user_message = build_prompt("query", [CHUNK_WITH_NAME])
+        assert "expert software engineer" in system
 
     def test_contains_chunk_content(self):
-        result = build_prompt("query", [CHUNK_WITH_NAME])
-        assert CHUNK_WITH_NAME["content"] in result
+        system, user_message = build_prompt("query", [CHUNK_WITH_NAME])
+        assert CHUNK_WITH_NAME["content"] in user_message
 
     def test_contains_no_relevant_snippets_when_chunks_empty(self):
-        result = build_prompt("query", [])
-        assert "No relevant code snippets" in result
+        system, user_message = build_prompt("query", [])
+        assert "No relevant code" in user_message
 
-    def test_contains_answer_label(self):
-        result = build_prompt("query", [CHUNK_WITH_NAME])
-        assert "Answer:" in result
+    def test_system_prompt_contains_markdown_instructions(self):
+        system, user_message = build_prompt("query", [CHUNK_WITH_NAME])
+        assert "Markdown" in system
 
-    def test_contains_question_label(self):
-        result = build_prompt("query", [CHUNK_WITH_NAME])
-        assert "Question:" in result
+    def test_user_message_contains_chunk_header(self):
+        system, user_message = build_prompt("query", [CHUNK_WITH_NAME])
+        assert "###" in user_message
 
 
 # --- _build_context tests ---
@@ -62,16 +62,15 @@ class TestBuildPrompt:
 class TestBuildContext:
     def test_returns_no_snippets_message_for_empty_list(self):
         result = _build_context([])
-        assert result == "No relevant code snippets were found in the repository."
+        assert result == "No relevant code was found in the repository for this question."
 
-    def test_contains_snippet_header(self):
+    def test_contains_chunk_header_marker(self):
         result = _build_context([CHUNK_WITH_NAME])
-        assert "Snippet 1" in result
+        assert "###" in result
 
-    def test_numbers_snippets_sequentially(self):
-        result = _build_context([CHUNK_WITH_NAME, CHUNK_WITHOUT_NAME])
-        assert "Snippet 1" in result
-        assert "Snippet 2" in result
+    def test_contains_file_path_in_header(self):
+        result = _build_context([CHUNK_WITH_NAME])
+        assert "app/services/user_service.py" in result
 
     def test_contains_chunk_content(self):
         result = _build_context([CHUNK_WITH_NAME])
@@ -81,9 +80,9 @@ class TestBuildContext:
         result = _build_context([CHUNK_WITH_NAME])
         assert CHUNK_WITH_NAME["file_path"] in result
 
-    def test_contains_preamble(self):
+    def test_contains_code_fence(self):
         result = _build_context([CHUNK_WITH_NAME])
-        assert "Relevant code snippets" in result
+        assert "```" in result
 
     def test_multiple_chunks_all_contents_present(self):
         result = _build_context([CHUNK_WITH_NAME, CHUNK_WITHOUT_NAME])
@@ -121,7 +120,7 @@ class TestBuildChunkHeader:
         assert "1" in result
         assert "2" in result
 
-    def test_falls_back_to_unknown_file_when_file_path_missing(self):
+    def test_falls_back_to_unknown_when_file_path_missing(self):
         chunk = {"chunk_type": "function", "name": "f", "start_line": 1, "end_line": 5}
         result = _build_chunk_header(chunk)
-        assert "unknown file" in result
+        assert "unknown" in result

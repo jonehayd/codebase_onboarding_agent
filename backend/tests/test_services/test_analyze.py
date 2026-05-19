@@ -13,7 +13,7 @@ from app.services.analyze import (
     ingest_changed_files,
     ingest_repo,
     update_repo_status,
-    _ingest_files,
+    _run_pipeline,
 )
 
 OWNER = "testowner"
@@ -57,6 +57,7 @@ def _make_gh_repo(latest_sha: str = NEW_SHA):
     gh_repo = MagicMock()
     gh_repo.default_branch = "main"
     gh_repo.get_branch.return_value = branch
+    gh_repo.size = 0  # explicitly set so the size check doesn't reject it
     return gh_repo
 
 
@@ -153,46 +154,56 @@ class TestGetChangedFilePaths:
         comparison.files = files
         return comparison
 
-    def test_returns_added_and_modified(self):
+    def test_added_and_modified_go_into_ingest_and_delete(self):
         gh_repo = MagicMock()
         added = MagicMock(filename="new.py", status="added")
         modified = MagicMock(filename="changed.py", status="modified")
-        deleted = MagicMock(filename="gone.py", status="removed")
-        gh_repo.compare.return_value = self._make_comparison([added, modified, deleted])
+        gh_repo.compare.return_value = self._make_comparison([added, modified])
 
-        result = get_changed_file_paths(gh_repo, OLD_SHA, NEW_SHA)
+        paths_to_ingest, paths_to_delete = get_changed_file_paths(gh_repo, OLD_SHA, NEW_SHA)
 
-        assert result == {"new.py", "changed.py"}
+        assert paths_to_ingest == {"new.py", "changed.py"}
+        assert paths_to_delete == {"new.py", "changed.py"}
 
-    def test_excludes_deleted_files(self):
+    def test_removed_files_go_into_delete_only(self):
         gh_repo = MagicMock()
         deleted = MagicMock(filename="gone.py", status="removed")
         gh_repo.compare.return_value = self._make_comparison([deleted])
 
-        result = get_changed_file_paths(gh_repo, OLD_SHA, NEW_SHA)
+        paths_to_ingest, paths_to_delete = get_changed_file_paths(gh_repo, OLD_SHA, NEW_SHA)
 
-        assert result == set()
+        assert paths_to_ingest == set()
+        assert paths_to_delete == {"gone.py"}
 
-    def test_returns_empty_set_when_no_changes(self):
+    def test_renamed_files_handled_correctly(self):
+        gh_repo = MagicMock()
+        renamed = MagicMock(filename="new_name.py", previous_filename="old_name.py", status="renamed")
+        gh_repo.compare.return_value = self._make_comparison([renamed])
+
+        paths_to_ingest, paths_to_delete = get_changed_file_paths(gh_repo, OLD_SHA, NEW_SHA)
+
+        assert paths_to_ingest == {"new_name.py"}
+        assert paths_to_delete == {"old_name.py", "new_name.py"}
+
+    def test_returns_empty_sets_when_no_changes(self):
         gh_repo = MagicMock()
         gh_repo.compare.return_value = self._make_comparison([])
 
-        result = get_changed_file_paths(gh_repo, OLD_SHA, NEW_SHA)
+        paths_to_ingest, paths_to_delete = get_changed_file_paths(gh_repo, OLD_SHA, NEW_SHA)
 
-        assert result == set()
+        assert paths_to_ingest == set()
+        assert paths_to_delete == set()
 
 
 # ---------------------------------------------------------------------------
-# _ingest_files
+# _run_pipeline
 # ---------------------------------------------------------------------------
 
-class TestIngestFiles:
+class TestRunPipeline:
     @patch("app.services.analyze.embed_chunks", return_value=[FAKE_VECTOR])
-    @patch("app.services.analyze.extract_chunks", return_value=[FAKE_CHUNK])
-    @patch("app.services.analyze.parse_file", return_value=MagicMock())
-    def test_persists_file_and_chunk(self, mock_parse, mock_chunk, mock_embed, db, completed_repo):
-        files = [_make_file_dict()]
-        _ingest_files(completed_repo.id, files, db)
+    @patch("app.services.analyze._fetch_and_parse", return_value=(_make_file_dict(), [FAKE_CHUNK]))
+    def test_persists_file_and_chunk(self, mock_fp, mock_embed, db, completed_repo):
+        _run_pipeline(completed_repo.id, _make_gh_repo(), ["src/main.py"], db)
 
         db_file = db.execute(
             select(Files).where(Files.repo_id == completed_repo.id)
@@ -206,30 +217,21 @@ class TestIngestFiles:
         assert db_chunk is not None
         assert db_chunk.name == "foo"
 
-    @patch("app.services.analyze.parse_file", return_value=None)
-    def test_skips_unparseable_files(self, mock_parse, db, completed_repo):
-        _ingest_files(completed_repo.id, [_make_file_dict()], db)
-        result = db.execute(
-            select(Files).where(Files.repo_id == completed_repo.id)
-        ).all()
-        assert result == []
-
-    @patch("app.services.analyze.embed_chunks", return_value=[])
-    @patch("app.services.analyze.extract_chunks", return_value=[])
-    @patch("app.services.analyze.parse_file", return_value=MagicMock())
-    def test_skips_files_with_no_chunks(self, mock_parse, mock_chunk, mock_embed, db, completed_repo):
-        _ingest_files(completed_repo.id, [_make_file_dict()], db)
+    @patch("app.services.analyze._fetch_and_parse", return_value=None)
+    def test_skips_files_that_return_none(self, mock_fp, db, completed_repo):
+        _run_pipeline(completed_repo.id, _make_gh_repo(), ["src/main.py"], db)
         result = db.execute(
             select(Files).where(Files.repo_id == completed_repo.id)
         ).all()
         assert result == []
 
     @patch("app.services.analyze.embed_chunks", return_value=[FAKE_VECTOR])
-    @patch("app.services.analyze.extract_chunks", return_value=[FAKE_CHUNK])
-    @patch("app.services.analyze.parse_file", return_value=MagicMock())
-    def test_processes_multiple_files(self, mock_parse, mock_chunk, mock_embed, db, completed_repo):
-        files = [_make_file_dict("a.py"), _make_file_dict("b.py")]
-        _ingest_files(completed_repo.id, files, db)
+    @patch(
+        "app.services.analyze._fetch_and_parse",
+        side_effect=lambda gh, p: (_make_file_dict(p), [FAKE_CHUNK]),
+    )
+    def test_processes_multiple_files(self, mock_fp, mock_embed, db, completed_repo):
+        _run_pipeline(completed_repo.id, _make_gh_repo(), ["a.py", "b.py"], db)
         count = len(db.execute(select(Files).where(Files.repo_id == completed_repo.id)).all())
         assert count == 2
 
@@ -239,9 +241,9 @@ class TestIngestFiles:
 # ---------------------------------------------------------------------------
 
 class TestIngestRepo:
-    @patch("app.services.analyze._ingest_files")
-    @patch("app.services.analyze.fetch_files", return_value=[_make_file_dict()])
-    def test_sets_completed_status_and_commit_hash(self, mock_fetch, mock_ingest, db):
+    @patch("app.services.analyze._run_pipeline")
+    @patch("app.services.analyze.get_file_tree", return_value=["src/main.py"])
+    def test_sets_completed_status_and_commit_hash(self, mock_tree, mock_pipeline, db):
         gh_repo = _make_gh_repo(NEW_SHA)
         repo = create_repo_record(OWNER, NAME, db)
 
@@ -251,8 +253,8 @@ class TestIngestRepo:
         assert repo.status == RepoStatus.COMPLETED
         assert repo.commit_hash == NEW_SHA
 
-    @patch("app.services.analyze.fetch_files", return_value=[])
-    def test_sets_failed_status_when_no_files(self, mock_fetch, db):
+    @patch("app.services.analyze.get_file_tree", return_value=[])
+    def test_sets_failed_status_when_no_files(self, mock_tree, db):
         gh_repo = _make_gh_repo()
         repo = create_repo_record(OWNER, NAME, db)
 
@@ -261,9 +263,9 @@ class TestIngestRepo:
         db.refresh(repo)
         assert repo.status == RepoStatus.FAILED
 
-    @patch("app.services.analyze._ingest_files", side_effect=Exception("embed error"))
-    @patch("app.services.analyze.fetch_files", return_value=[_make_file_dict()])
-    def test_sets_failed_status_on_exception(self, mock_fetch, mock_ingest, db):
+    @patch("app.services.analyze._run_pipeline", side_effect=Exception("embed error"))
+    @patch("app.services.analyze.get_file_tree", return_value=["src/main.py"])
+    def test_sets_failed_status_on_exception(self, mock_tree, mock_pipeline, db):
         gh_repo = _make_gh_repo()
         repo = create_repo_record(OWNER, NAME, db)
 
@@ -273,10 +275,10 @@ class TestIngestRepo:
         db.refresh(repo)
         assert repo.status == RepoStatus.FAILED
 
-    @patch("app.services.analyze._ingest_files")
-    @patch("app.services.analyze.fetch_files", return_value=[_make_file_dict()])
+    @patch("app.services.analyze._run_pipeline")
+    @patch("app.services.analyze.get_file_tree", return_value=["src/main.py"])
     @patch("app.services.analyze.fetch_repo")
-    def test_fetches_gh_repo_when_not_provided(self, mock_fetch_repo, mock_fetch_files, mock_ingest, db):
+    def test_fetches_gh_repo_when_not_provided(self, mock_fetch_repo, mock_tree, mock_pipeline, db):
         mock_fetch_repo.return_value = _make_gh_repo()
         repo = create_repo_record(OWNER, NAME, db)
 
@@ -290,10 +292,9 @@ class TestIngestRepo:
 # ---------------------------------------------------------------------------
 
 class TestIngestChangedFiles:
-    @patch("app.services.analyze._ingest_files")
-    @patch("app.services.analyze.fetch_files_by_paths", return_value=[_make_file_dict()])
-    @patch("app.services.analyze.get_changed_file_paths", return_value={"src/main.py"})
-    def test_updates_commit_hash_on_success(self, mock_paths, mock_fetch, mock_ingest, db, completed_repo):
+    @patch("app.services.analyze._run_pipeline")
+    @patch("app.services.analyze.get_changed_file_paths", return_value=({"src/main.py"}, set()))
+    def test_updates_commit_hash_on_success(self, mock_paths, mock_pipeline, db, completed_repo):
         gh_repo = _make_gh_repo()
 
         ingest_changed_files(completed_repo.id, OWNER, NAME, gh_repo, OLD_SHA, NEW_SHA, db)
@@ -302,7 +303,7 @@ class TestIngestChangedFiles:
         assert completed_repo.commit_hash == NEW_SHA
         assert completed_repo.status == RepoStatus.COMPLETED
 
-    @patch("app.services.analyze.get_changed_file_paths", return_value=set())
+    @patch("app.services.analyze.get_changed_file_paths", return_value=(set(), set()))
     def test_skips_ingest_when_no_changes(self, mock_paths, db, completed_repo):
         gh_repo = _make_gh_repo()
 
@@ -311,10 +312,9 @@ class TestIngestChangedFiles:
         db.refresh(completed_repo)
         assert completed_repo.status == RepoStatus.COMPLETED
 
-    @patch("app.services.analyze._ingest_files", side_effect=Exception("embed error"))
-    @patch("app.services.analyze.fetch_files_by_paths", return_value=[_make_file_dict()])
-    @patch("app.services.analyze.get_changed_file_paths", return_value={"src/main.py"})
-    def test_sets_failed_status_on_exception(self, mock_paths, mock_fetch, mock_ingest, db, completed_repo):
+    @patch("app.services.analyze._run_pipeline", side_effect=Exception("embed error"))
+    @patch("app.services.analyze.get_changed_file_paths", return_value=({"src/main.py"}, set()))
+    def test_sets_failed_status_on_exception(self, mock_paths, mock_pipeline, db, completed_repo):
         gh_repo = _make_gh_repo()
 
         with pytest.raises(RuntimeError, match="Incremental ingestion failed"):
@@ -323,15 +323,15 @@ class TestIngestChangedFiles:
         db.refresh(completed_repo)
         assert completed_repo.status == RepoStatus.FAILED
 
-    @patch("app.services.analyze._ingest_files")
-    @patch("app.services.analyze.fetch_files_by_paths", return_value=[_make_file_dict()])
-    @patch("app.services.analyze.get_changed_file_paths", return_value={"src/main.py"})
-    def test_only_fetches_changed_paths(self, mock_paths, mock_fetch, mock_ingest, db, completed_repo):
+    @patch("app.services.analyze._run_pipeline")
+    @patch("app.services.analyze.get_changed_file_paths", return_value=({"src/main.py"}, set()))
+    def test_only_processes_changed_paths(self, mock_paths, mock_pipeline, db, completed_repo):
         gh_repo = _make_gh_repo()
 
         ingest_changed_files(completed_repo.id, OWNER, NAME, gh_repo, OLD_SHA, NEW_SHA, db)
 
-        mock_fetch.assert_called_once_with(gh_repo, {"src/main.py"})
+        mock_pipeline.assert_called_once()
+        assert set(mock_pipeline.call_args[0][2]) == {"src/main.py"}
 
 
 # ---------------------------------------------------------------------------
