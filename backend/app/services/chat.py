@@ -8,7 +8,7 @@ from app.db.models import Messages, Repositories, Sessions
 from app.rag.retriever import retrieve_chunks, list_repo_files
 from app.rag.prompt_builder import build_prompt
 from app.rag.llm_client import stream_responses, get_response
-from app.config import MessageRole
+from app.config import MessageRole, settings
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def stream_chat(
     repo_id: int,
     question: str,
     db: Session,
-    top_k: int = 15,
+    top_k: int | None = None,
     session_id: int | None = None,
     save_messages: bool = True,
 ) -> Generator[str, None, None]:
@@ -104,7 +104,7 @@ def stream_chat(
         repo_id (int): The ID of the repository.
         question (str): The user's question.
         db (Session): The database session.
-        top_k (int): Number of chunks to retrieve. Defaults to 15.
+        top_k (int | None): Number of chunks to retrieve. Defaults to settings.top_k_chunks.
         session_id (int | None): Explicit session ID; if None, one is found or created.
         save_messages (bool): Whether to persist messages and update session activity.
             Set to False for anonymous/share-link chat so history is not polluted.
@@ -112,6 +112,8 @@ def stream_chat(
     Yields:
         str: Text tokens streamed from the LLM.
     """
+    if top_k is None:
+        top_k = settings.top_k_chunks
 
     if save_messages:
         # Use explicit session_id when provided (sessions-centric flow)
@@ -160,7 +162,7 @@ def chat(
     repo_id: int,
     question: str,
     db: Session,
-    top_k: int = 15,
+    top_k: int | None = None,
 ) -> str:
     """Non-streaming version of the chat pipeline. Useful for testing.
 
@@ -169,11 +171,13 @@ def chat(
         repo_id (int): The ID of the repository.
         question (str): The user's question.
         db (Session): The database session.
-        top_k (int): Number of chunks to retrieve. Defaults to 8.
+        top_k (int | None): Number of chunks to retrieve. Defaults to settings.top_k_chunks.
 
     Returns:
         str: The complete response text.
     """
+    if top_k is None:
+        top_k = settings.top_k_chunks
     session = get_or_create_session(user_id, repo_id, db)
     save_message(session.id, MessageRole.USER, question, db)
 
