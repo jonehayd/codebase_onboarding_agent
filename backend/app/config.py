@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Environment variables
-    github_token: str
+    github_token: str | None = None
     open_ai_key: str
     anthropic_key: str
     database_url: str

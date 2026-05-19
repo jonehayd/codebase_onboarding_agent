@@ -518,6 +518,11 @@ def get_file_content(
         from github import Auth, Github
 
         token = current_user.github_token or settings.github_token
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="File viewing requires a GitHub token. Re-authenticate with repo access or set GITHUB_TOKEN.",
+            )
         g = Github(auth=Auth.Token(token))
         gh_repo = g.get_repo(f"{repo.owner}/{repo.name}")
         gh_file = gh_repo.get_contents(file.file_path, ref=repo.commit_hash)

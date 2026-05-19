@@ -18,7 +18,10 @@ def fetch_repo(owner: str, name: str, token: str = None):
         github.Repository.Repository: The fetched repository object, or None if an error occurred.
     """    
     
-    auth = Auth.Token(token or settings.github_token)
+    resolved_token = token or settings.github_token
+    if not resolved_token:
+        raise ValueError("No GitHub token available. Provide a user token or set GITHUB_TOKEN.")
+    auth = Auth.Token(resolved_token)
     g = Github(auth=auth)
     try:
         repo = g.get_repo(f"{owner}/{name}")

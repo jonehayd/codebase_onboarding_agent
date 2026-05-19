@@ -165,6 +165,12 @@ def get_shared_file_content(
     if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
+    if not settings.github_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="File viewing via share links requires GITHUB_TOKEN to be configured.",
+        )
+
     try:
         from github import Auth, Github
 

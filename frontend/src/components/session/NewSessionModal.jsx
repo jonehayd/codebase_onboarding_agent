@@ -9,6 +9,8 @@ export default function NewSessionModal({
   onClose,
   onSubmit,
   hasRepoAccess = false,
+  error = null,
+  submitting = false,
 }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -211,12 +213,19 @@ export default function NewSessionModal({
             </div>
           </div>
 
+          {error && (
+            <p className="text-xs text-red-500 border border-red-500 px-3 py-2">
+              {error}
+            </p>
+          )}
+
           {/* submit button */}
           <button
             type="submit"
-            className="w-full py-3 bg-text text-black font-semibold text-sm tracking-widest uppercase cursor-pointer hover:bg-text-muted transition-colors duration-150 mt-1"
+            disabled={submitting}
+            className="w-full py-3 bg-text text-black font-semibold text-sm tracking-widest uppercase cursor-pointer hover:bg-text-muted transition-colors duration-150 mt-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Create Session
+            {submitting ? "Creating…" : "Create Session"}
           </button>
         </form>
       </div>
