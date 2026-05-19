@@ -1,9 +1,11 @@
+import logging
 import time
 import threading
 from typing import Optional
 
 from app.config import settings
-from app.core.logger import logger
+
+logger = logging.getLogger(__name__)
 
 
 class IngestionCancelledError(Exception):
