@@ -3,6 +3,7 @@ import threading
 from typing import Optional
 
 from app.config import settings
+from app.core.logger import logger
 
 
 class IngestionCancelledError(Exception):
@@ -18,7 +19,13 @@ _PROGRESS_TTL = 86400  # 24 hours
 
 def _make_redis_client():
     import redis
-    return redis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        client = redis.from_url(settings.redis_url, decode_responses=True)
+        client.ping()  # verify connection works
+        return client
+    except Exception as e:
+        logger.warning(f"Redis unavailable: {e}, falling back to in-memory")
+        return None
 
 
 if settings.redis_url:
