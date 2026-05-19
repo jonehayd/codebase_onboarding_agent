@@ -22,6 +22,7 @@ from app.core.errors import (
 )
 from app.db.database import init_db, SessionLocal
 from app.services.sessions import purge_stale_sessions
+from app.utility.auth import purge_expired_revoked_tokens
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -33,6 +34,9 @@ async def _session_cleanup_loop():
             count = await asyncio.to_thread(purge_stale_sessions, db)
             if count:
                 logger.info("Session cleanup: purged %d stale session(s)", count)
+            revoked = await asyncio.to_thread(purge_expired_revoked_tokens, db)
+            if revoked:
+                logger.info("Token cleanup: purged %d expired revoked token(s)", revoked)
         finally:
             db.close()
         await asyncio.sleep(24 * 60 * 60)

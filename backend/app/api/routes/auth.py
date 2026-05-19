@@ -135,9 +135,10 @@ def list_user_repos(current_user: Users = Depends(get_current_user)):
 def logout(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Revoke the current JWT so it cannot be used again."""
-    add_to_blocklist(credentials.credentials)
+    add_to_blocklist(credentials.credentials, db)
 
 
 def _exchange_code_for_token(code: str) -> str:
