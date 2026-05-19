@@ -5,12 +5,11 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from app.api.dependencies import get_current_user
 from app.api.schemas import UserOut
 from app.config import settings
+from app.core.limiter import limiter
 from app.db.database import get_db
 from app.db.models import Users
 from app.utility.auth import add_to_blocklist, create_token
@@ -18,7 +17,6 @@ from app.utility.auth import add_to_blocklist, create_token
 _bearer = HTTPBearer()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-limiter = Limiter(key_func=get_remote_address)
 
 GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"

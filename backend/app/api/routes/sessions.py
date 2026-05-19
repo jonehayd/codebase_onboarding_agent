@@ -7,8 +7,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import select, func
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from app.api.dependencies import get_current_user
 from app.api.schemas import (
@@ -26,6 +24,7 @@ from app.api.schemas import (
     ShareLinkOut,
 )
 from app.config import settings
+from app.core.limiter import limiter
 from app.db.database import get_db
 from app.db.models import CodeChunks, Files, Messages, Repositories, Sessions, Users
 from app.services import sessions as session_svc
@@ -35,7 +34,6 @@ from app.services.chat import get_conversation_history, stream_chat
 from app.ingestion.github_client import fetch_repo
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 # GitHub username: 1-39 chars, alphanumeric + hyphens, no leading/trailing hyphen

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     github_client_secret: str
     
     frontend_url: str = "http://localhost:3000"
+    redis_url: str | None = None
 
     # Session settings
     max_sessions_per_user: int = 5

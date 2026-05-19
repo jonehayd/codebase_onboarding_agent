@@ -4,17 +4,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from app.api.schemas import ShareInfoOut
 from app.config import settings
+from app.core.limiter import limiter
 from app.db.database import get_db
 from app.db.models import Files, Repositories, Sessions, ShareableLinks
 from app.services.chat import get_conversation_history, stream_chat
 
 router = APIRouter(prefix="/share", tags=["share"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 class ShareChatRequest(BaseModel):

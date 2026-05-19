@@ -4,8 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -14,6 +12,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.routes.share import router as share_router
 from app.config import settings
+from app.core.limiter import limiter
 from app.core.logging import setup_logging
 from app.core.errors import (
     http_exception_handler,
@@ -26,8 +25,6 @@ from app.services.sessions import purge_stale_sessions
 
 setup_logging()
 logger = logging.getLogger(__name__)
-
-limiter = Limiter(key_func=get_remote_address)
 
 async def _session_cleanup_loop():
     while True:

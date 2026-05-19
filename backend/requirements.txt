@@ -46,6 +46,7 @@ python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.26
 PyYAML==6.0.3
+redis==5.2.1
 requests==2.33.1
 rsa==4.9.1
 sentry-sdk==2.57.0
