@@ -8,14 +8,10 @@ from app.services.progress_store import IngestionCancelledError
 
 @pytest.fixture(autouse=True)
 def _clean_state():
-    """Reset module-level state before each test."""
-    with progress_store._lock:
-        progress_store._progress.clear()
-        progress_store._cancel_flags.clear()
+    """Reset progress store state before and after each test."""
+    progress_store._flush_test_state()
     yield
-    with progress_store._lock:
-        progress_store._progress.clear()
-        progress_store._cancel_flags.clear()
+    progress_store._flush_test_state()
 
 
 # --- init_progress ---
@@ -94,12 +90,13 @@ class TestGetProgress:
         assert isinstance(p["elapsed_seconds"], int)
         assert p["elapsed_seconds"] >= 0
 
-    def test_elapsed_seconds_uses_final_elapsed_when_set(self):
+    def test_elapsed_seconds_frozen_after_mark_completed(self):
         progress_store.init_progress(1)
-        with progress_store._lock:
-            progress_store._progress[1]["final_elapsed"] = 99
-        p = progress_store.get_progress(1)
-        assert p["elapsed_seconds"] == 99
+        progress_store.mark_completed(1)
+        p1 = progress_store.get_progress(1)["elapsed_seconds"]
+        time.sleep(0.05)
+        p2 = progress_store.get_progress(1)["elapsed_seconds"]
+        assert p1 == p2
 
     def test_started_at_not_exposed(self):
         progress_store.init_progress(1)
