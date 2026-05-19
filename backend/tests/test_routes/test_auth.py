@@ -75,8 +75,8 @@ class TestGithubLogin:
         # basic flow includes read:user but NOT the bare "repo" scope token
         assert "read" in location
         assert "scope=repo" not in location
-        # "repo" only appears as part of "read:user" URL-encoded, not as standalone scope
-        assert "scope=read%3Auser%20user%3Aemail" in location or "scope=read:user" in location
+        # urlencode uses + for spaces; colon is encoded as %3A
+        assert "scope=read%3Auser+user%3Aemail" in location or "scope=read:user" in location
 
     def test_redirect_url_requests_repo_scope_when_private_true(self, client):
         tc, _ = client
@@ -100,49 +100,37 @@ class TestGithubCallbackSuccess:
     @patch("app.api.routes.auth.httpx.post")
     @patch("app.api.routes.auth.httpx.get")
     @patch("app.api.routes.auth.create_token")
-    def test_returns_200(self, mock_token, mock_get, mock_post, client):
+    def test_returns_302(self, mock_token, mock_get, mock_post, client):
         tc, _ = client
         mock_post.return_value.json.return_value = {"access_token": "gh_tok"}
         mock_get.side_effect = _mock_get_side_effects(DEFAULT_PROFILE, DEFAULT_EMAILS)
         mock_token.return_value = "jwt.tok"
         response = tc.get("/auth/github/callback?code=abc")
-        assert response.status_code == 200
+        assert response.status_code == 302
 
     @patch("app.api.routes.auth.httpx.post")
     @patch("app.api.routes.auth.httpx.get")
     @patch("app.api.routes.auth.create_token")
-    def test_response_contains_access_token(self, mock_token, mock_get, mock_post, client):
+    def test_redirect_location_contains_token(self, mock_token, mock_get, mock_post, client):
         tc, _ = client
         mock_post.return_value.json.return_value = {"access_token": "gh_tok"}
         mock_get.side_effect = _mock_get_side_effects(DEFAULT_PROFILE, DEFAULT_EMAILS)
         mock_token.return_value = "jwt.tok"
-        data = tc.get("/auth/github/callback?code=abc").json()
-        assert data["access_token"] == "jwt.tok"
+        response = tc.get("/auth/github/callback?code=abc")
+        assert "token=jwt.tok" in response.headers["location"]
 
     @patch("app.api.routes.auth.httpx.post")
     @patch("app.api.routes.auth.httpx.get")
     @patch("app.api.routes.auth.create_token")
-    def test_response_token_type_is_bearer(self, mock_token, mock_get, mock_post, client):
+    def test_redirect_location_goes_to_frontend_callback(self, mock_token, mock_get, mock_post, client):
         tc, _ = client
         mock_post.return_value.json.return_value = {"access_token": "gh_tok"}
         mock_get.side_effect = _mock_get_side_effects(DEFAULT_PROFILE, DEFAULT_EMAILS)
         mock_token.return_value = "jwt.tok"
-        data = tc.get("/auth/github/callback?code=abc").json()
-        assert data["token_type"] == "bearer"
-
-    @patch("app.api.routes.auth.httpx.post")
-    @patch("app.api.routes.auth.httpx.get")
-    @patch("app.api.routes.auth.create_token")
-    def test_response_contains_user_info(self, mock_token, mock_get, mock_post, client):
-        tc, _ = client
-        mock_post.return_value.json.return_value = {"access_token": "gh_tok"}
-        mock_get.side_effect = _mock_get_side_effects(DEFAULT_PROFILE, DEFAULT_EMAILS)
-        mock_token.return_value = "jwt.tok"
-        data = tc.get("/auth/github/callback?code=abc").json()
-        assert "user" in data
-        assert "id" in data["user"]
-        assert "username" in data["user"]
-        assert "email" in data["user"]
+        response = tc.get("/auth/github/callback?code=abc")
+        from app.config import settings
+        assert settings.frontend_url in response.headers["location"]
+        assert "/auth/callback" in response.headers["location"]
 
     @patch("app.api.routes.auth.httpx.post")
     @patch("app.api.routes.auth.httpx.get")
@@ -221,33 +209,51 @@ class TestGithubCallbackSuccess:
     @patch("app.api.routes.auth.create_token")
     def test_has_repo_access_false_without_state(self, mock_token, mock_get, mock_post, client):
         tc, mock_db = client
+        existing_user = MagicMock()
+        existing_user.id = 1
+        existing_user.username = "jonehayd"
+        existing_user.email = "j@example.com"
+        existing_user.has_repo_access = True  # starts True, should be set to False
+        mock_db.execute.return_value.scalar_one_or_none.return_value = existing_user
         mock_post.return_value.json.return_value = {"access_token": "gh_tok"}
         mock_get.side_effect = _mock_get_side_effects(DEFAULT_PROFILE, DEFAULT_EMAILS)
         mock_token.return_value = "jwt.tok"
-        data = tc.get("/auth/github/callback?code=abc").json()
-        assert data["user"]["has_repo_access"] is False
+        tc.get("/auth/github/callback?code=abc")
+        assert existing_user.has_repo_access is False
 
     @patch("app.api.routes.auth.httpx.post")
     @patch("app.api.routes.auth.httpx.get")
     @patch("app.api.routes.auth.create_token")
     def test_has_repo_access_false_with_basic_state(self, mock_token, mock_get, mock_post, client):
         tc, mock_db = client
+        existing_user = MagicMock()
+        existing_user.id = 1
+        existing_user.username = "jonehayd"
+        existing_user.email = "j@example.com"
+        existing_user.has_repo_access = True  # starts True, should be set to False
+        mock_db.execute.return_value.scalar_one_or_none.return_value = existing_user
         mock_post.return_value.json.return_value = {"access_token": "gh_tok"}
         mock_get.side_effect = _mock_get_side_effects(DEFAULT_PROFILE, DEFAULT_EMAILS)
         mock_token.return_value = "jwt.tok"
-        data = tc.get("/auth/github/callback?code=abc&state=basic").json()
-        assert data["user"]["has_repo_access"] is False
+        tc.get("/auth/github/callback?code=abc&state=basic")
+        assert existing_user.has_repo_access is False
 
     @patch("app.api.routes.auth.httpx.post")
     @patch("app.api.routes.auth.httpx.get")
     @patch("app.api.routes.auth.create_token")
     def test_has_repo_access_true_with_repo_state(self, mock_token, mock_get, mock_post, client):
         tc, mock_db = client
+        existing_user = MagicMock()
+        existing_user.id = 1
+        existing_user.username = "jonehayd"
+        existing_user.email = "j@example.com"
+        existing_user.has_repo_access = False
+        mock_db.execute.return_value.scalar_one_or_none.return_value = existing_user
         mock_post.return_value.json.return_value = {"access_token": "gh_tok"}
         mock_get.side_effect = _mock_get_side_effects(DEFAULT_PROFILE, DEFAULT_EMAILS)
         mock_token.return_value = "jwt.tok"
-        data = tc.get("/auth/github/callback?code=abc&state=repo").json()
-        assert data["user"]["has_repo_access"] is True
+        tc.get("/auth/github/callback?code=abc&state=repo")
+        assert existing_user.has_repo_access is True
 
     @patch("app.api.routes.auth.httpx.post")
     @patch("app.api.routes.auth.httpx.get")

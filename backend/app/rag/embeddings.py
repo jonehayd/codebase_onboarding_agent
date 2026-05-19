@@ -1,10 +1,12 @@
 from openai import OpenAI
+import tiktoken
 from app.config import settings
 
 client = OpenAI(api_key=settings.open_ai_key)
 
-# ~4 chars/token on average; 30 000 chars keeps us well under the 8 192-token limit.
-_MAX_EMBED_CHARS = 30_000
+_tokenizer = tiktoken.get_encoding("cl100k_base")
+_MAX_EMBED_TOKENS = 8000  # hard limit is 8192; leave a small margin
+
 
 def build_embed_text(chunk: dict) -> str:
     """Build the text to be embedded for a given code chunk.
@@ -16,13 +18,16 @@ def build_embed_text(chunk: dict) -> str:
         str: The text to be embedded.
     """
     
-    # Build the text to be embedded by combining the chunk type, name, and content
     parts = []
     if chunk.get("name"):
         parts.append(f"{chunk['chunk_type']} {chunk['name']}")
     if chunk.get("content"):
         parts.append(chunk["content"])
-    return "\n".join(parts)[:_MAX_EMBED_CHARS]
+    text = "\n".join(parts)
+    tokens = _tokenizer.encode(text)
+    if len(tokens) > _MAX_EMBED_TOKENS:
+        text = _tokenizer.decode(tokens[:_MAX_EMBED_TOKENS])
+    return text
 
 def embed_chunks(chunks: list[dict]) -> list[list[float]]:
     """Generate embeddings for a list of code chunks.

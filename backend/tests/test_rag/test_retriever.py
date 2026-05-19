@@ -107,12 +107,12 @@ class TestRetrieveChunks:
         assert call_args[0][1]["top_k"] == 5
 
     @patch("app.rag.retriever.embed_query")
-    def test_default_top_k_is_8(self, mock_embed):
+    def test_default_top_k_is_15(self, mock_embed):
         mock_embed.return_value = [0.1] * 1536
         db = _make_mock_db([])
         retrieve_chunks("query", repo_id=1, db=db)
         call_args = db.execute.call_args
-        assert call_args[0][1]["top_k"] == 8
+        assert call_args[0][1]["top_k"] == 15
 
     @patch("app.rag.retriever.embed_query")
     def test_passes_query_vector_to_db(self, mock_embed):
