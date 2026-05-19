@@ -3,6 +3,9 @@ from app.config import settings
 
 client = OpenAI(api_key=settings.open_ai_key)
 
+# ~4 chars/token on average; 30 000 chars keeps us well under the 8 192-token limit.
+_MAX_EMBED_CHARS = 30_000
+
 def build_embed_text(chunk: dict) -> str:
     """Build the text to be embedded for a given code chunk.
 
@@ -19,7 +22,7 @@ def build_embed_text(chunk: dict) -> str:
         parts.append(f"{chunk['chunk_type']} {chunk['name']}")
     if chunk.get("content"):
         parts.append(chunk["content"])
-    return "\n".join(parts)
+    return "\n".join(parts)[:_MAX_EMBED_CHARS]
 
 def embed_chunks(chunks: list[dict]) -> list[list[float]]:
     """Generate embeddings for a list of code chunks.
