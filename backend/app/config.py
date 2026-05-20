@@ -38,8 +38,9 @@ class Settings(BaseSettings):
     
     # LLM settings
     anthropic_model: str = "claude-haiku-4-5"
+    query_expansion_model: str = "claude-haiku-4-5-20251001"
     max_response_tokens: int = 1024
-    temperature: float = 0.7    
+    temperature: float = 0.7
 
     model_config = SettingsConfigDict(env_file=".env")
     
