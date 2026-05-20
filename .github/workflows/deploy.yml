@@ -15,8 +15,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            git config --global --add safe.directory /opt/codebase-onboarding-agent
             cd /opt/codebase-onboarding-agent
             git pull origin main
             source venv/bin/activate
             pip install -r backend/requirements.txt
-            sudo systemctl restart codebase-onboarding-agent
+            sudo systemctl restart onboarding-agent
