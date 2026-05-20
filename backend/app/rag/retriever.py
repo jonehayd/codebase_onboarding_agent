@@ -98,7 +98,30 @@ def retrieve_chunks(query: str, repo_id: int, db: Session, top_k: int = 15) -> l
         }
         for row in rows
     ]
-    
+
+
+def retrieve_chunks_multi_query(
+    question: str, repo_id: int, db: Session, top_k: int = 15
+) -> list[dict]:
+    """Retrieve chunks using the original question plus LLM-generated sub-queries.
+
+    Each sub-query is embedded and searched independently. Results are merged by
+    chunk ID, keeping the lowest (best) distance seen across all queries, then
+    sorted by distance ascending.
+    """
+    from app.rag.llm_client import expand_query
+
+    queries = expand_query(question)
+    best: dict[int, dict] = {}
+
+    for query in queries:
+        for chunk in retrieve_chunks(query, repo_id, db, top_k=top_k):
+            chunk_id = chunk["id"]
+            if chunk_id not in best or chunk["distance"] < best[chunk_id]["distance"]:
+                best[chunk_id] = chunk
+
+    return sorted(best.values(), key=lambda c: c["distance"])
+
 
 # --- manual test code ---
 if __name__ == "__main__":

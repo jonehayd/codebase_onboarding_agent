@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, update as sql_update, func
 
 from app.db.models import Messages, Repositories, Sessions
-from app.rag.retriever import retrieve_chunks, list_repo_files, get_pinned_chunks
+from app.rag.retriever import retrieve_chunks_multi_query, list_repo_files, get_pinned_chunks
 from app.rag.prompt_builder import build_prompt
 from app.rag.llm_client import stream_responses, get_response
 from app.config import MessageRole, settings
@@ -136,13 +136,13 @@ def stream_chat(
         logger.info("Chat request (anonymous): repo=%d question_len=%d", repo_id, len(question))
 
     pinned = get_pinned_chunks(repo_id, db)
-    semantic = retrieve_chunks(question, repo_id, db, top_k)
+    semantic = retrieve_chunks_multi_query(question, repo_id, db, top_k)
     pinned_ids = {c["id"] for c in pinned}
     chunks = pinned + [c for c in semantic if c["id"] not in pinned_ids]
     if session:
-        logger.debug("Retrieved %d chunk(s) (%d pinned) for session=%d", len(chunks), len(pinned), session.id)
+        logger.debug("Retrieved %d chunk(s) (%d pinned, %d semantic) for session=%d", len(chunks), len(pinned), len(semantic), session.id)
     else:
-        logger.debug("Retrieved %d chunk(s) (%d pinned) for repo=%d (anonymous)", len(chunks), len(pinned), repo_id)
+        logger.debug("Retrieved %d chunk(s) (%d pinned, %d semantic) for repo=%d (anonymous)", len(chunks), len(pinned), len(semantic), repo_id)
 
     repo = db.get(Repositories, repo_id)
     repo_name = f"{repo.owner}/{repo.name}" if repo else None
@@ -185,7 +185,7 @@ def chat(
     save_message(session.id, MessageRole.USER, question, db)
 
     pinned = get_pinned_chunks(repo_id, db)
-    semantic = retrieve_chunks(question, repo_id, db, top_k=top_k)
+    semantic = retrieve_chunks_multi_query(question, repo_id, db, top_k=top_k)
     pinned_ids = {c["id"] for c in pinned}
     chunks = pinned + [c for c in semantic if c["id"] not in pinned_ids]
     repo = db.get(Repositories, repo_id)

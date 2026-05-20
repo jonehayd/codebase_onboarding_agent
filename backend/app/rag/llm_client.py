@@ -27,6 +27,36 @@ def stream_responses(system: str, user_message: str) -> Generator[str, None, Non
             yield text
 
 
+def expand_query(question: str) -> list[str]:
+    """Return the original question plus up to 3 targeted sub-queries.
+
+    Uses a cheap fast model so the extra round-trip has minimal latency impact.
+    Falls back to [question] alone if the LLM call fails.
+    """
+    try:
+        message = client.messages.create(
+            model=settings.query_expansion_model,
+            max_tokens=150,
+            system=(
+                "You are a code search expert. Given a question about a software codebase, "
+                "generate 3 short, specific search queries that together cover the key aspects "
+                "needed to answer the question. Queries will be used to search code embeddings, "
+                "so make them concrete: include library names, function names, config keys, or "
+                "technical concepts. Return exactly 3 queries, one per line, no numbering or "
+                "extra explanation."
+            ),
+            messages=[{"role": "user", "content": question}],
+        )
+        sub_queries = [
+            line.strip()
+            for line in message.content[0].text.strip().splitlines()
+            if line.strip()
+        ]
+        return [question] + sub_queries[:3]
+    except Exception:
+        return [question]
+
+
 def get_response(system: str, user_message: str) -> str:
     """Get a complete non-streamed response. Useful for testing.
 
