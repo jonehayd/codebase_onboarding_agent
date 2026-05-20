@@ -216,7 +216,6 @@ async def _run_pipeline_async(repo_id: int, gh_repo, paths: list[str], db: Sessi
             files_done += 1
             if item is not None:
                 file, chunks = item
-                chunks = [c for c in chunks if c["chunk_type"] != "imports"]
                 if chunks:
                     db_file = Files(
                         repo_id=repo_id,
