@@ -189,41 +189,54 @@ export function IngestionView({ sessionId, onComplete, onFailed }) {
       .catch(() => {});
   }, [sessionId]);
 
-  // Poll ingestion status
+  // Poll ingestion status with exponential backoff on errors
   useEffect(() => {
     completedRef.current = false;
     setStatus(null);
     let active = true;
-    let intervalId;
+    let timeoutId;
+    let consecutiveErrors = 0;
+    const MAX_ERRORS = 8;
+    const BASE_INTERVAL = 2000;
 
     const poll = async () => {
       try {
         const data = await getSessionStatus(sessionId);
         if (!active) return;
+        consecutiveErrors = 0;
         setStatus(data);
         setFetchError(null);
         if (!ACTIVE_STATUSES.has(data.status)) {
-          clearInterval(intervalId);
           if (data.status === "completed" && !completedRef.current) {
             completedRef.current = true;
-            // Delay so the checkmark animation finishes before transitioning
             setTimeout(() => onComplete?.(), 1500);
           }
           if (data.status === "failed") {
             onFailed?.(data.error_message ?? null, data.stage === "cancelled");
           }
+          return;
         }
       } catch (e) {
-        if (active) setFetchError(e.message);
+        if (!active) return;
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= MAX_ERRORS) {
+          setFetchError("Server is not responding. The server may be overloaded — wait a moment and retry.");
+          return;
+        }
+        setFetchError(`Connection error. Retrying… (${consecutiveErrors}/${MAX_ERRORS})`);
+      }
+
+      if (active) {
+        const delay = Math.min(BASE_INTERVAL * 2 ** (consecutiveErrors - 1), 16000);
+        timeoutId = setTimeout(poll, consecutiveErrors > 0 ? delay : BASE_INTERVAL);
       }
     };
 
     poll();
-    intervalId = setInterval(poll, 2000);
 
     return () => {
       active = false;
-      clearInterval(intervalId);
+      clearTimeout(timeoutId);
     };
   }, [sessionId, retryKey, onComplete, onFailed]);
 

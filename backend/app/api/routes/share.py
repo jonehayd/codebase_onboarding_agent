@@ -9,7 +9,7 @@ from app.api.schemas import ShareInfoOut
 from app.config import settings
 from app.core.limiter import limiter
 from app.db.database import get_db
-from app.db.models import Files, Repositories, Sessions, ShareableLinks
+from app.db.models import Files, Repositories, Sessions, ShareableLinks, Users
 from app.services.chat import get_conversation_history, stream_chat
 
 router = APIRouter(prefix="/share", tags=["share"])
@@ -165,7 +165,9 @@ def get_shared_file_content(
     if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    if not settings.github_token:
+    creator = db.get(db.get_bind().__class__, link.created_by) if False else db.get(__import__('app.db.models', fromlist=['Users']).Users, link.created_by)
+    token = (creator.github_token if creator else None) or settings.github_token
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="File viewing via share links requires GITHUB_TOKEN to be configured.",
@@ -174,7 +176,7 @@ def get_shared_file_content(
     try:
         from github import Auth, Github
 
-        g = Github(auth=Auth.Token(settings.github_token))
+        g = Github(auth=Auth.Token(token))
         gh_repo = g.get_repo(f"{repo.owner}/{repo.name}")
         gh_file = gh_repo.get_contents(file.file_path)
         content = gh_file.decoded_content.decode("utf-8", errors="ignore")

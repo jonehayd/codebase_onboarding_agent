@@ -63,13 +63,13 @@ def _parse_github_url(url: str) -> tuple[str, str]:
         )
 
     parts = parsed.path.strip("/").split("/")
-    if len(parts) != 2:
+    if len(parts) < 2 or not parts[0] or not parts[1]:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid GitHub URL. Expected format: https://github.com/{owner}/{repo}",
         )
 
-    owner, repo = parts
+    owner, repo = parts[0], parts[1].removesuffix(".git")
     if not _OWNER_RE.match(owner):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

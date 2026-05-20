@@ -46,7 +46,6 @@ export default function NewSessionModal({
   function normalizeUrl(value) {
     const v = value.trim();
     if (!v) return v;
-    // If it looks like owner/repo (no scheme, no github.com), expand it
     if (!v.startsWith("http://") && !v.startsWith("https://")) {
       return `https://github.com/${v}`;
     }
@@ -61,7 +60,7 @@ export default function NewSessionModal({
       if (!u.hostname.endsWith("github.com"))
         return "URL must point to github.com";
       const parts = u.pathname.replace(/^\/|\/$/, "").split("/");
-      if (parts.length !== 2 || !parts[0] || !parts[1])
+      if (parts.length < 2 || !parts[0] || !parts[1].replace(/\.git$/, ""))
         return "Expected format: owner/repo";
       return null;
     } catch {

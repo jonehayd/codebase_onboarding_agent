@@ -10,12 +10,13 @@ export default function ChatInput({ onSend }) {
 
   const count = message.length;
   const tooLong = count > MAX_CHARS;
+  const isEmpty = message.trim().length === 0;
   const hasError = tooLong;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
-    if (!tooLong) {
+    if (!tooLong && !isEmpty) {
       onSend(message);
       setMessage("");
       setSubmitted(false);
@@ -45,7 +46,8 @@ export default function ChatInput({ onSend }) {
           />
           <button
             type="submit"
-            className="px-3 py-2 text-text-subtle hover:text-text transition-colors duration-150 cursor-pointer bg-surface rounded disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:text-text-muted"
+            disabled={isEmpty || tooLong}
+            className="px-3 py-2 text-text-subtle hover:text-text transition-colors duration-150 cursor-pointer bg-surface disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:text-text-muted"
           >
             <LuSend />
           </button>

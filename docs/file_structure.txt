@@ -1,73 +1,122 @@
 codebase_onboarding_agent/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
+│   │   ├── main.py                         FastAPI app entry point, middleware, router registration
+│   │   ├── config.py                       Pydantic settings loaded from .env
 │   │   ├── api/
-│   │   │   ├── __init__.py
-│   │   │   ├── dependencies.py
+│   │   │   ├── dependencies.py             JWT auth dependency, database session injection
+│   │   │   ├── schemas.py                  Pydantic request and response models
 │   │   │   └── routes/
-│   │   │       ├── __init__.py
-│   │   │       ├── analyze.py
-│   │   │       ├── chat.py
-│   │   │       ├── repo.py
-│   │   │       └── status.py
+│   │   │       ├── auth.py                 GitHub OAuth, /auth/github, /auth/me, /auth/logout
+│   │   │       ├── sessions.py             Session CRUD, ingestion, chat, files, share links
+│   │   │       └── share.py                Anonymous shareable link routes, no auth required
+│   │   ├── core/
+│   │   │   ├── limiter.py                  slowapi rate limiter configuration
+│   │   │   ├── logging.py                  Logging setup
+│   │   │   └── errors.py                   Global exception handlers
 │   │   ├── db/
-│   │   │   ├── __init__.py
-│   │   │   ├── database.py
-│   │   │   └── models.py
+│   │   │   ├── database.py                 SQLAlchemy async engine and session factory
+│   │   │   └── models.py                   All ORM models (User, Session, Message, Repo, File, CodeChunk, etc.)
 │   │   ├── ingestion/
-│   │   │   ├── __init__.py
-│   │   │   ├── github_client.py
-│   │   │   ├── file_filter.py
-│   │   │   ├── parser.py
-│   │   │   └── chunker.py
+│   │   │   ├── github_client.py            PyGithub wrapper, file tree fetching, concurrent file download
+│   │   │   ├── parser.py                   Tree-sitter parsing per language, AST walking
+│   │   │   ├── chunker.py                  Extract functions, classes, and imports from parsed AST
+│   │   │   └── filter.py                   File size, extension, and type filtering
 │   │   ├── rag/
-│   │   │   ├── __init__.py
-│   │   │   ├── embeddings.py
-│   │   │   ├── retriever.py
-│   │   │   ├── prompt_builder.py
-│   │   │   └── llm_client.py
-│   │   └── services/
-│   │       ├── __init__.py
-│   │       ├── analyze.py
-│   │       └── chat.py
+│   │   │   ├── embeddings.py               OpenAI embedding client, batch embedding generation
+│   │   │   ├── retriever.py                Hybrid BM25 + semantic search with RRF ranking, pinned files
+│   │   │   ├── prompt_builder.py           Assembles system prompt from repo context, chunks, and history
+│   │   │   └── llm_client.py               Anthropic streaming client, query expansion
+│   │   ├── services/
+│   │   │   ├── analyze.py                  Full and incremental ingestion orchestration
+│   │   │   ├── chat.py                     Chat pipeline entry points for sessions and share links
+│   │   │   ├── sessions.py                 Session database operations, share link creation and revocation
+│   │   │   └── progress_store.py           In-memory ingestion progress tracking and cancellation state
+│   │   └── utility/
+│   │       └── auth.py                     JWT creation and validation, Redis-backed token blocklist
 │   ├── tests/
 │   │   ├── test_parser.py
 │   │   ├── test_chunker.py
 │   │   └── test_api.py
-│   ├── .env
-│   ├── .env.example
-│   ├── requirements.txt
-│   └── Dockerfile
+│   ├── alembic/                            Database migration files
+│   ├── .env.example                        Sample environment variable file
+│   ├── requirements.txt                    Python dependencies
+│   └── Dockerfile                          Python 3.12-slim image, runs alembic then uvicorn
+│
 ├── frontend/
 │   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx
+│   │   ├── main.jsx                        React entry point
+│   │   ├── App.jsx                         Router setup and protected route configuration
+│   │   ├── pages/
+│   │   │   ├── LandingPage.jsx             Public homepage shown to logged-out users
+│   │   │   ├── LoginPage.jsx               Redirects to GitHub OAuth
+│   │   │   ├── AuthCallbackPage.jsx        Handles OAuth callback, stores JWT token
+│   │   │   ├── AppPage.jsx                 Main app shell: sessions, chat, file browser
+│   │   │   ├── IngestionPage.jsx           Repo URL input and ingestion progress view
+│   │   │   └── SharePage.jsx               Read-only shared session view, no auth required
 │   │   ├── components/
-│   │   │   ├── RepoInput.tsx
-│   │   │   ├── IngestionProgress.tsx
-│   │   │   ├── ChatInterface.tsx
-│   │   │   ├── FileTreeSidebar.tsx
-│   │   │   └── ShareLink.tsx
-│   │   ├── hooks/
-│   │   │   ├── useIngestion.ts
-│   │   │   └── useChat.ts
+│   │   │   ├── chat/
+│   │   │   │   ├── ChatPanel.jsx           Message list and input container
+│   │   │   │   ├── ChatInput.jsx           Text input with character limit and submit button
+│   │   │   │   ├── Message.jsx             Individual message bubble
+│   │   │   │   ├── MessageList.jsx         Scrollable message history
+│   │   │   │   └── AssistantMessageContent.jsx  Markdown and code block rendering
+│   │   │   ├── files/
+│   │   │   │   ├── FileTree.jsx            Collapsible file tree for indexed files
+│   │   │   │   ├── FileTreePanel.jsx       Panel wrapper for file tree
+│   │   │   │   └── FileView.jsx            Modal for viewing file content
+│   │   │   ├── session/
+│   │   │   │   ├── SessionSidebar.jsx      Sidebar listing all user sessions
+│   │   │   │   ├── SelectSession.jsx       Empty state prompt to select or create a session
+│   │   │   │   ├── SessionEntry.jsx        Individual session item with rename and delete
+│   │   │   │   └── NewSessionModal.jsx     Modal for entering a new repo URL
+│   │   │   ├── layout/
+│   │   │   │   ├── AppLayout.jsx           Three-column layout (sidebar, chat, files)
+│   │   │   │   ├── Header.jsx              Top nav with user menu and share button
+│   │   │   │   ├── Sidebar.jsx             Left sidebar wrapper
+│   │   │   │   ├── Panel.jsx               Reusable panel container
+│   │   │   │   └── ShareButton.jsx         Copy shareable link button
+│   │   │   └── ui/
+│   │   │       └── Card.jsx                Generic card component
 │   │   ├── api/
-│   │   │   └── client.ts
-│   │   └── types/
-│   │       └── index.ts
-│   ├── public/
+│   │   │   ├── client.js                   Base HTTP client with auth headers and SSE consumer
+│   │   │   ├── auth.js                     Auth API calls: me, repos, logout
+│   │   │   ├── sessions.js                 Session CRUD, chat, files, share link calls
+│   │   │   ├── chat.js                     Chat history and streaming helpers
+│   │   │   ├── files.js                    File listing and content fetching
+│   │   │   └── share.js                    Shareable link API calls
+│   │   ├── hooks/
+│   │   │   ├── useIngestion.ts             Polls ingestion status until complete or failed
+│   │   │   └── useChat.ts                  Manages streaming chat state and message history
+│   │   ├── types/
+│   │   │   └── index.ts                    TypeScript type definitions for API responses
+│   │   └── lib/
+│   │       └── utils.ts                    Shared utility functions
+│   ├── public/                             Static assets
 │   ├── index.html
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   └── package.json
-├── scratch/
-├── infra/
-│   ├── nginx.conf
-│   ├── codebase-onboarding.service
-│   └── cloudwatch-config.json
-├── docker-compose.yml
-├── Project_Overview.md
-├── Project_Plan.md
+│
+├── deploy/
+│   ├── nginx.conf                          Reverse proxy config with SSE streaming timeouts
+│   ├── setup_ec2.sh                        EC2 provisioning script
+│   └── codebase-onboarding.service         Systemd unit file for the FastAPI backend
+│
+├── docs/
+│   ├── Project_Overview.md                 Purpose, architecture, features, and API reference
+│   ├── Project_Plan.md                     Phase-by-phase task breakdown with current status
+│   ├── file_structure.txt                  This file
+│   ├── postgres_schema_erd.html            Visual ER diagram of the database schema
+│   ├── ingestion_pipeline.svg              Diagram of the repo ingestion flow
+│   └── query_retrieval_pipeline.svg        Diagram of the RAG retrieval flow
+│
+├── .github/
+│   └── workflows/
+│       └── deploy.yml                      GitHub Actions workflow: SSH deploy to EC2 on push to main
+│
+├── docker-compose.yml                      Postgres, Redis, backend, and frontend services
+├── .env.example                            Root-level sample environment file
+├── pytest.ini                              Test configuration
+├── reset-db.sh                             Development script to drop and recreate the database
 └── README.md
