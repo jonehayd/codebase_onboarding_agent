@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, Computed
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 from pgvector.sqlalchemy import Vector
@@ -82,6 +83,11 @@ class CodeChunks(Base):
     start_line: Mapped[int]
     end_line: Mapped[int]
     embedding = mapped_column(Vector(settings.embedding_dimensions), nullable=True)
+    content_tsv = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('english', content)", persisted=True),
+        nullable=True,
+    )
 
 class RevokedTokens(Base):
     __tablename__ = "revoked_tokens"
