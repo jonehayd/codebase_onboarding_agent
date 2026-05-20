@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import AppLayout from "@components/layout/AppLayout";
 import {
   listSessions,
   createSession as apiCreateSession,
   updateSession,
   deleteSession,
+  checkFreshness,
   reingestSession,
 } from "@api/sessions";
 import { streamChat, getChatHistory } from "@api/chat";
@@ -78,6 +80,28 @@ export default function AppPage() {
 
   // Cancel any in-flight stream when the component unmounts.
   useEffect(() => () => abortStreamRef.current?.(), []);
+
+  // When a completed session is selected, check for new commits and auto-reingest if stale.
+  useEffect(() => {
+    if (!selectedId || activeSession?.status !== "completed") return;
+
+    checkFreshness(selectedId)
+      .then(({ is_stale }) => {
+        if (!is_stale) return;
+        return reingestSession(selectedId).then(() => {
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === selectedId ? { ...s, status: "pending" } : s,
+            ),
+          );
+          toast.info("Applying latest changes", {
+            description: "New commits were detected. Re-syncing the repository now.",
+          });
+        });
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   const handleSelectSession = useCallback((id) => setSelectedId(id), []);
 
