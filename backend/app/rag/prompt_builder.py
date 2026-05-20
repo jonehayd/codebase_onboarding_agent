@@ -17,15 +17,18 @@ Be direct. Reference specific files and line numbers naturally inline \
 follow with a fenced code block containing the relevant lines. Never mention a \
 line range without showing the code.
 
-You are given two types of context:
+You are given three types of context:
 1. **File index** — a complete list of every file in the repository. Use this to \
 reason about the project structure, infer the purpose of files you were not shown, \
 and answer questions about what exists even without seeing the content.
-2. **Code samples** — the most semantically relevant code chunks retrieved for the \
+2. **Project configuration** — always-included content from dependency and \
+infrastructure files (e.g. package.json, requirements.txt, docker-compose.yml). \
+Use this as ground truth for questions about libraries, dependencies, and services.
+3. **Code samples** — the most semantically relevant code chunks retrieved for the \
 current question. These are a representative sample, not the entire codebase.
 
-Answer using both. When content of a relevant file was not retrieved, say so and \
-explain what you can infer from its name/location — do not refuse to answer.\
+Answer using all three. When content of a relevant file was not retrieved, say so \
+and explain what you can infer from its name/location — do not refuse to answer.\
 """
 
 
@@ -69,13 +72,26 @@ def _build_context(chunks: list[dict]) -> str:
     if not chunks:
         return "No relevant code was found in the repository for this question."
 
+    pinned = [c for c in chunks if c.get("pinned")]
+    semantic = [c for c in chunks if not c.get("pinned")]
+
     parts = []
-    for chunk in chunks:
-        header = _build_chunk_header(chunk)
-        parts.append(f"### {header}")
-        parts.append(f"```{_guess_language(chunk)}")
-        parts.append(chunk["content"])
-        parts.append("```")
+
+    if pinned:
+        parts.append("## Project Configuration")
+        for chunk in pinned:
+            parts.append(f"### {_build_chunk_header(chunk)}")
+            parts.append(f"```{_guess_language(chunk)}")
+            parts.append(chunk["content"])
+            parts.append("```")
+
+    if semantic:
+        parts.append("## Relevant Code Samples")
+        for chunk in semantic:
+            parts.append(f"### {_build_chunk_header(chunk)}")
+            parts.append(f"```{_guess_language(chunk)}")
+            parts.append(chunk["content"])
+            parts.append("```")
 
     return "\n".join(parts)
 

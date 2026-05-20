@@ -1,8 +1,17 @@
+import re
+
 from requests import Session
 from sqlalchemy import select, text
 
 from app.db.models import Files
 from app.rag.embeddings import embed_query
+
+PINNED_FILENAMES = {
+    "package.json", "requirements.txt", "go.mod", "Cargo.toml", "pyproject.toml",
+    "docker-compose.yml", "docker-compose.yaml", "Dockerfile", "README.md",
+}
+
+_PINNED_PATTERN = "(" + "|".join(re.escape(n) for n in PINNED_FILENAMES) + ")$"
 
 
 def list_repo_files(repo_id: int, db: Session) -> list[str]:
@@ -13,6 +22,28 @@ def list_repo_files(repo_id: int, db: Session) -> list[str]:
         .order_by(Files.file_path)
     ).scalars().all()
     return list(rows)
+
+
+def get_pinned_chunks(repo_id: int, db: Session) -> list[dict]:
+    """Return chunks from always-included config/dependency files for a repository.
+
+    These files (package.json, requirements.txt, docker-compose.yml, etc.) are injected
+    into every prompt regardless of query similarity so that dependency/stack questions
+    are always answered from ground truth rather than inferred from code samples.
+    """
+    rows = db.execute(
+        text("""
+            SELECT cc.id, cc.chunk_type, cc.name, cc.content,
+                   cc.start_line, cc.end_line, f.file_path, 0.0 AS distance
+            FROM code_chunks cc
+            JOIN files f ON f.id = cc.file_id
+            WHERE f.repo_id = :repo_id
+              AND f.file_path ~ :pattern
+            ORDER BY f.file_path, cc.start_line
+        """),
+        {"repo_id": repo_id, "pattern": _PINNED_PATTERN},
+    ).fetchall()
+    return [{**dict(row._mapping), "pinned": True} for row in rows]
 
 
 def retrieve_chunks(query: str, repo_id: int, db: Session, top_k: int = 15) -> list[dict]:
