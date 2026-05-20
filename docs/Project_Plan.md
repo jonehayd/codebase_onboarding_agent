@@ -1,149 +1,155 @@
-# Codebase Onboarding Assistant
-**Project Plan** | Hayden Jones | Last updated: April 2026
+# Codebase Onboarding Agent
+
+**Project Plan** | Hayden Jones | Last updated: May 2026
 
 ---
 
 ## Status Key
 
-| Symbol | Meaning |
-|---|---|
-| ⬜ | Not Started |
-| 🔵 | In Progress |
-| ✅ | Done |
-| 🔴 | Blocked |
+| Symbol | Meaning     |
+| ------ | ----------- |
+| ⬜     | Not Started |
+| 🔵     | In Progress |
+| ✅     | Done        |
+| 🔴     | Blocked     |
 
 ---
 
 ## Timeline Summary
 
-| Phase | Description | Estimated Time | Status |
-|---|---|---|---|
-| 1 | Repo Ingestion Pipeline | 2–3 weeks | ⬜ Not Started |
-| 2 | Query & Retrieval (RAG) | 1–2 weeks | ⬜ Not Started |
-| 3 | FastAPI Backend Endpoints | 3–5 days | ⬜ Not Started |
-| 4 | React Frontend | 1 week | ⬜ Not Started |
-| 5 | AWS Deployment | 3–5 days | ⬜ Not Started |
-| 6 | Polish & Stretch Goals | 1 week+ | ⬜ Not Started |
-| | **Total (part time)** | **6–10 weeks** | |
+| Phase | Description               | Status         |
+| ----- | ------------------------- | -------------- |
+| 1     | Repo Ingestion Pipeline   | ✅ Complete    |
+| 2     | Query and Retrieval (RAG) | ✅ Complete    |
+| 3     | FastAPI Backend Endpoints | ✅ Complete    |
+| 4     | React Frontend            | ✅ Complete    |
+| 5     | AWS Deployment            | ✅ Complete    |
+| 6     | Polish and Stretch Goals  | 🔵 In Progress |
 
 ---
 
 ## Phase 1 — Repo Ingestion Pipeline
-**Estimated time:** 2–3 weeks | The most important phase. Get this right before anything else.
 
-| Status | Task | Notes |
-|---|---|---|
-| ⬜ | Set up Python project structure and virtual environment | |
-| ⬜ | Install and configure PyGithub for GitHub API access | |
-| ⬜ | Implement repo fetching — file tree traversal, filtering binaries and lock files | |
-| ⬜ | Install Tree-sitter and language grammars (Python, TS, JS, Java, Go) | |
-| ⬜ | Build AST parser to extract functions, classes, routes, and imports per file | |
-| ⬜ | Design chunking strategy based on code structure, not fixed char counts | Critical — spend the most time here |
-| ⬜ | Set up PostgreSQL locally with pgvector extension | |
-| ⬜ | Design database schema: repos, files, chunks, embeddings tables | |
-| ⬜ | Implement embedding generation (OpenAI or sentence-transformers) | |
-| ⬜ | Store chunks and embeddings in pgvector | |
-| ⬜ | Implement commit hash caching — skip re-ingestion if repo unchanged | |
-| ⬜ | Set up AWS S3 bucket and implement raw file caching | |
-| ⬜ | Write unit tests for parser and chunking logic | |
-| ⬜ | Test ingestion end-to-end on 3–4 real repos of varying sizes | |
+**Status: Complete**
+
+| Status | Task                                                                  | Notes                                                                                      |
+| ------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| ✅     | Set up Python project structure and virtual environment               |                                                                                            |
+| ✅     | Install and configure PyGithub for GitHub API access                  |                                                                                            |
+| ✅     | Implement repo fetching via git tree API                              | Used single git tree call instead of recursive get_contents for better performance         |
+| ✅     | Concurrent file downloads with async worker pool                      | 16 parallel workers                                                                        |
+| ✅     | Install Tree-sitter and language grammars (Python, TS, JS, Java, Go)  |                                                                                            |
+| ✅     | Build AST parser to extract functions, classes, methods, and imports  | Separate parser per language                                                               |
+| ✅     | Design structure-based chunking                                       | Functions and classes are their own chunks; line-based fallback for unsupported file types |
+| ✅     | Set up PostgreSQL with pgvector extension                             |                                                                                            |
+| ✅     | Design and implement database schema                                  |                                                                                            |
+| ✅     | Implement embedding generation with OpenAI text-embedding-3-small     | Batched in groups of 300                                                                   |
+| ✅     | Store chunks and embeddings in pgvector with tsvector column for BM25 |                                                                                            |
+| ✅     | Commit hash caching to skip re-ingestion on unchanged repos           |                                                                                            |
+| ✅     | File filtering by size, extension, and type                           | Skip binaries, lock files, and build artifacts                                             |
+| ✅     | Write unit tests for parser and chunking logic                        |                                                                                            |
 
 ---
 
-## Phase 2 — Query & Retrieval (RAG)
-**Estimated time:** 1–2 weeks | Tune retrieval quality before building the API layer.
+## Phase 2 — Query and Retrieval (RAG)
 
-| Status | Task | Notes |
-|---|---|---|
-| ⬜ | Set up LlamaIndex and configure pgvector as the vector store | |
-| ⬜ | Implement query embedding pipeline | |
-| ⬜ | Build similarity search against pgvector with configurable top-k | |
-| ⬜ | Design prompt template — how chunks + question are assembled for the LLM | |
-| ⬜ | Integrate Anthropic or OpenAI API for completions | |
-| ⬜ | Implement streaming response support | |
-| ⬜ | Maintain conversation history per session for follow-up questions | |
-| ⬜ | Test retrieval quality across different question types | Ask about endpoints, auth, setup, deps |
-| ⬜ | Tune chunk size and top-k until answer quality is acceptable | Iterate here |
+**Status: Complete**
+
+| Status | Task                                                       | Notes                                                                        |
+| ------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| ✅     | Implement query embedding pipeline                         |                                                                              |
+| ✅     | Build hybrid search combining BM25 and semantic similarity | Built custom hybrid search instead of LlamaIndex                             |
+| ✅     | Implement Reciprocal Rank Fusion to merge result sets      |                                                                              |
+| ✅     | Query expansion via Claude before retrieval                | Generates 2 to 3 sub-queries per question                                    |
+| ✅     | Pinned file strategy                                       | package.json, requirements.txt, Dockerfile, README always included           |
+| ✅     | Design and implement prompt builder                        | Includes repo context, file list, retrieved chunks, and conversation history |
+| ✅     | Integrate Anthropic Claude API for completions             |                                                                              |
+| ✅     | Implement streaming response support via SSE               |                                                                              |
+| ✅     | Maintain conversation history per session                  | Saved to database and passed as context                                      |
 
 ---
 
 ## Phase 3 — FastAPI Backend Endpoints
-**Estimated time:** 3–5 days | Straightforward once phases 1 and 2 are solid.
 
-| Status | Task | Notes |
-|---|---|---|
-| ⬜ | Set up FastAPI project with CORS and environment config | |
-| ⬜ | POST /analyze — accepts GitHub URL, kicks off ingestion job | |
-| ⬜ | GET /status/{repo_id} — returns ingestion progress | |
-| ⬜ | POST /chat — accepts question + session, returns streamed answer | |
-| ⬜ | GET /repo/{repo_id} — returns repo metadata and file tree | |
-| ⬜ | Add rate limiting to prevent API cost blowout | |
-| ⬜ | Add error handling for invalid URLs, private repos, large repos | |
-| ⬜ | Write API integration tests | |
+**Status: Complete**
+
+| Status | Task                                                                 | Notes                                                              |
+| ------ | -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| ✅     | Set up FastAPI project with CORS and environment config              |                                                                    |
+| ✅     | Auth routes: GitHub OAuth, callback, current user, logout            | JWT-based with Redis blocklist                                     |
+| ✅     | Session routes: create, list, get, update, delete                    |                                                                    |
+| ✅     | Ingestion routes: status, cancel, freshness check, re-ingest         |                                                                    |
+| ✅     | Chat route with SSE streaming                                        |                                                                    |
+| ✅     | File routes: list, search, fetch content                             | Content fetched from GitHub API on demand                          |
+| ✅     | Share routes: create link, revoke link                               |                                                                    |
+| ✅     | Shareable link routes: metadata, chat, history, files                | No auth required                                                   |
+| ✅     | Rate limiting on chat endpoints                                      | 30 per day for authenticated users, 20 per day for shared sessions |
+| ✅     | Error handling for invalid URLs, large repos, and ingestion failures |                                                                    |
+| ✅     | Background task ingestion so the API response returns immediately    | FastAPI BackgroundTasks                                            |
 
 ---
 
 ## Phase 4 — React Frontend
-**Estimated time:** 1 week | Should be the fastest phase given existing React experience.
 
-| Status | Task | Notes |
-|---|---|---|
-| ⬜ | Scaffold Vite + React + TypeScript project | |
-| ⬜ | Build repo URL input with validation and submit handler | |
-| ⬜ | Build ingestion progress indicator — polling /status endpoint | |
-| ⬜ | Build chat interface with message history and streaming display | |
-| ⬜ | Handle streamed responses from backend | |
-| ⬜ | Add shareable link generation for processed repos | |
-| ⬜ | Add file tree sidebar showing indexed files | |
-| ⬜ | Error states — invalid repo, ingestion failure, API errors | |
-| ⬜ | Basic responsive styling | |
-| ⬜ | Deploy frontend to Vercel | |
+**Status: Complete**
+
+| Status | Task                                                   | Notes                        |
+| ------ | ------------------------------------------------------ | ---------------------------- |
+| ✅     | Scaffold Vite + React + TypeScript project             |                              |
+| ✅     | GitHub OAuth login and callback handling               | Token stored in localStorage |
+| ✅     | Session sidebar with list, create, rename, and delete  |                              |
+| ✅     | Repo URL input and session creation flow               |                              |
+| ✅     | Ingestion progress page with real-time polling         |                              |
+| ✅     | Chat interface with streaming message display          |                              |
+| ✅     | Markdown and syntax-highlighted code rendering in chat |                              |
+| ✅     | File browser sidebar with tree view                    |                              |
+| ✅     | File content modal pulled from GitHub                  |                              |
+| ✅     | Shareable link generation and share page               |                              |
+| ✅     | Protected routes with auth guard                       |                              |
+| ✅     | Responsive layout                                      |                              |
+| ✅     | Deploy frontend to Vercel                              |                              |
 
 ---
 
 ## Phase 5 — AWS Deployment
-**Estimated time:** 3–5 days | Expect this to take longer than it looks the first time.
 
-| Status | Task | Notes |
-|---|---|---|
-| ⬜ | Provision EC2 instance (t3.small or t3.medium) | |
-| ⬜ | Install Python, dependencies, and configure environment variables | |
-| ⬜ | Set up nginx as reverse proxy in front of gunicorn/uvicorn | |
-| ⬜ | Configure systemd service so FastAPI restarts on reboot | |
-| ⬜ | Provision RDS PostgreSQL instance and enable pgvector extension | |
-| ⬜ | Create S3 bucket and configure IAM permissions | |
-| ⬜ | Point onboard.hjones.dev at EC2 via Cloudflare or Route 53 | |
-| ⬜ | Set up SSL certificate (Let's Encrypt or Cloudflare) | |
-| ⬜ | Test full end-to-end flow on production environment | |
-| ⬜ | Set up CloudWatch or basic logging for error monitoring | |
+**Status: Complete**
+
+| Status | Task                                                     | Notes                            |
+| ------ | -------------------------------------------------------- | -------------------------------- |
+| ✅     | Provision EC2 instance                                   |                                  |
+| ✅     | Install Python, dependencies, and configure environment  |                                  |
+| ✅     | Set up Nginx as reverse proxy with SSE streaming support | 300s read/send timeouts          |
+| ✅     | Configure systemd service for FastAPI                    | Restarts automatically on reboot |
+| ✅     | Provision RDS PostgreSQL with pgvector extension         |                                  |
+| ✅     | Set up GitHub Actions deploy workflow                    | SSH deploy on push to main       |
+| ✅     | SSL via Cloudflare                                       |                                  |
+| ✅     | End-to-end testing in production                         |                                  |
+| ✅     | Sentry integration for error monitoring                  |                                  |
 
 ---
 
-## Phase 6 — Polish & Stretch Goals
-**Estimated time:** 1 week+ | Nice-to-haves after MVP is live.
+## Phase 6 — Polish and Stretch Goals
 
-| Status | Task | Notes |
-|---|---|---|
-| ⬜ | Add GitHub OAuth for private repo support | Stretch |
-| ⬜ | Export conversation as Markdown | Stretch |
-| ⬜ | Repo update detection — re-index on new commits | Stretch |
-| ⬜ | Multi-language support beyond the initial 5 | Stretch |
-| ⬜ | Add response citations — which files were used to answer | Stretch |
-| ⬜ | Write a good README with demo video | Required for resume |
-| ⬜ | Pin repo on GitHub profile | |
-| ⬜ | Add project to resume and portfolio site | |
+**Status: In Progress**
+
+| Status | Task                                             | Notes                |
+| ------ | ------------------------------------------------ | -------------------- |
+| ✅     | GitHub OAuth for private repo support            | repo scope available |
+| ✅     | Repo update detection and re-ingestion           |                      |
+| ✅     | Incremental re-ingestion on file changes         |                      |
+| ⬜     | Export conversation as Markdown                  | Stretch              |
+| ⬜     | Response citations showing which files were used | Stretch              |
+| ⬜     | Multi-repo mode                                  | Stretch              |
+| 🔵     | README and documentation                         | In progress          |
 
 ---
 
 ## Development Notes
 
-| Date | Note |
-|---|---|
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
+| Date     | Note                                                                                                                                                                             |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| May 2026 | Replaced LlamaIndex with a custom hybrid search implementation. BM25 runs through PostgreSQL tsvector natively, making the architecture simpler and faster.                      |
+| May 2026 | Query expansion added using Claude Haiku before retrieval. Noticeably improves recall on vague or ambiguous questions.                                                           |
+| May 2026 | Switched from fixed-size text chunking to Tree-sitter AST-based chunking. Answer quality improved significantly for questions about specific functions or classes.               |
+| May 2026 | Ingestion uses a producer-consumer async pattern with 16 concurrent file fetch workers. Processing time for medium-sized repos dropped from several minutes to under 60 seconds. |
