@@ -86,13 +86,13 @@ def fetch_files(
                         update_progress(repo_id, files_processed=_state["count"])
         return files
     except github.RateLimitExceededException:
-        print(f"GitHub API rate limit exceeded while fetching files from {repo.full_name} at path '{path}'")
+        logger.warning("GitHub API rate limit exceeded fetching files from %s at path '%s'", repo.full_name, path)
         raise
     except github.UnknownObjectException:
-        print(f"Path '{path}' not found in repository {repo.full_name} or private repository access issue")
+        logger.warning("Path '%s' not found in %s or private repository access issue", path, repo.full_name)
         raise
     except Exception as e:
-        print(f"Error fetching files from {repo.full_name} at path '{path}': {e}")
+        logger.error("Error fetching files from %s at path '%s': %s", repo.full_name, path, e)
         return []
 
 def fetch_files_by_paths(repo: "github.Repository.Repository", paths: set[str]) -> list[dict]:
