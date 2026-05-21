@@ -145,11 +145,12 @@ def _path_priority(path: str) -> int:
     return 1
 
 
-def get_file_tree(gh_repo, commit_sha: str) -> list[str]:
-    """Return ingestable file paths via the git tree API (single API call).
+def get_file_tree(gh_repo, commit_sha: str) -> tuple[list[str], bool]:
+    """Return (ingestable file paths, was_capped) via the git tree API (single API call).
 
-    Much faster than recursive get_contents() for large repos.
-    Falls back to an empty list on error; caller should treat that as fatal.
+    was_capped is True when the repo has more ingestable files than max_files_per_repo,
+    meaning some files were omitted. Caller should surface this to the user.
+    Falls back to ([], False) on error; caller should treat an empty list as fatal.
     """
     try:
         git_commit = gh_repo.get_git_commit(commit_sha)
@@ -173,17 +174,18 @@ def get_file_tree(gh_repo, commit_sha: str) -> list[str]:
 
         paths.sort(key=_path_priority)
 
-        if len(paths) > settings.max_files_per_repo:
+        was_capped = len(paths) > settings.max_files_per_repo
+        if was_capped:
             logger.warning(
                 "%s has %d ingestable files; capping at %d (source code prioritised over docs)",
                 gh_repo.full_name, len(paths), settings.max_files_per_repo,
             )
             paths = paths[: settings.max_files_per_repo]
 
-        return paths
+        return paths, was_capped
     except Exception as e:
         logger.error("Failed to fetch git tree for %s: %s", gh_repo.full_name, e)
-        return []
+        return [], False
 
 
 def fetch_file_content(gh_repo, path: str) -> dict | None:

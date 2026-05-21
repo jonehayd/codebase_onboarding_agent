@@ -266,6 +266,7 @@ def get_session_status(
         files_total = prog["files_total"] or file_count
         elapsed_seconds = prog["elapsed_seconds"]
         error_message = prog.get("error_message")
+        files_truncated = bool(prog.get("files_truncated", False))
     else:
         _stage_map = {
             "pending": "fetching_files",
@@ -278,6 +279,7 @@ def get_session_status(
         files_total = file_count
         elapsed_seconds = None
         error_message = None
+        files_truncated = False
 
     return {
         "session_id": session.id,
@@ -291,6 +293,7 @@ def get_session_status(
         "elapsed_seconds": elapsed_seconds,
         "commit_hash": repo.commit_hash,
         "error_message": error_message,
+        "files_truncated": files_truncated,
     }
 
 

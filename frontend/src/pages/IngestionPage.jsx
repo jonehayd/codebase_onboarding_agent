@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
+import { toast } from "sonner";
 import {
   getSession,
   getSessionStatus,
@@ -209,6 +210,9 @@ export function IngestionView({ sessionId, onComplete, onFailed }) {
         if (!ACTIVE_STATUSES.has(data.status)) {
           if (data.status === "completed" && !completedRef.current) {
             completedRef.current = true;
+            if (data.files_truncated) {
+              toast.warning("Repository too large, not all files were fetched");
+            }
             setTimeout(() => onComplete?.(), 1500);
           }
           if (data.status === "failed") {

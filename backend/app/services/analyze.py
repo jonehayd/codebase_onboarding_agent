@@ -308,7 +308,10 @@ def ingest_repo(repo_id: int, owner: str, name: str, db: Session, gh_repo=None) 
 
         latest_hash = get_latest_commit_hash(gh_repo)
 
-        paths = get_file_tree(gh_repo, latest_hash)
+        paths, was_capped = get_file_tree(gh_repo, latest_hash)
+
+        if was_capped:
+            progress_store.update_progress(repo_id, files_truncated=1)
 
         if not paths:
             logger.warning("No files fetched for %s/%s; marking as failed", owner, name)
