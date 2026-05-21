@@ -1,6 +1,7 @@
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
+import { Analytics } from "@vercel/analytics/react";
 
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -14,6 +15,8 @@ function ProtectedRoute({ children }) {
 }
 
 export default function App() {
+  const analyticsMode = import.meta.env.PROD ? "production" : "development";
+
   return (
     <BrowserRouter>
       <Toaster theme="dark" position="bottom-right" richColors />
@@ -31,6 +34,7 @@ export default function App() {
         />
         <Route path="/share/:token" element={<SharePage />} />
       </Routes>
+      <Analytics mode={analyticsMode} />
     </BrowserRouter>
   );
 }
