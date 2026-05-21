@@ -148,7 +148,7 @@ def _fetch_and_parse(gh_repo, path: str) -> tuple[dict, list] | None:
     return (file, chunks) if chunks else None
 
 
-_FETCH_WORKERS = 16
+_FETCH_WORKERS = 8
 _EMBED_BATCH_SIZE = 300
 _SENTINEL = object()
 
@@ -237,6 +237,8 @@ async def _run_pipeline_async(repo_id: int, gh_repo, paths: list[str], db: Sessi
                         if progress_store.is_cancelled(repo_id):
                             raise IngestionCancelledError()
                         count = await _embed_and_persist_batch(pending, db)
+                        db.commit()
+                        db.expunge_all()
                         vector_count += count
                         pending = []
 
@@ -251,6 +253,8 @@ async def _run_pipeline_async(repo_id: int, gh_repo, paths: list[str], db: Sessi
             if progress_store.is_cancelled(repo_id):
                 raise IngestionCancelledError()
             count = await _embed_and_persist_batch(pending, db)
+            db.commit()
+            db.expunge_all()
             vector_count += count
 
         db.commit()

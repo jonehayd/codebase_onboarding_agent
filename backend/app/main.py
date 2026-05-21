@@ -21,7 +21,7 @@ from app.core.errors import (
     validation_exception_handler,
 )
 from app.db.database import init_db, SessionLocal
-from app.services.sessions import purge_stale_sessions
+from app.services.sessions import purge_stale_sessions, recover_interrupted_ingestions
 from app.utility.auth import purge_expired_revoked_tokens
 
 setup_logging()
@@ -46,6 +46,13 @@ async def _session_cleanup_loop():
 async def lifespan(app: FastAPI):
     logger.info("Starting up Codebase Onboarding Agent")
     init_db()
+    db = SessionLocal()
+    try:
+        count = recover_interrupted_ingestions(db)
+        if count:
+            logger.info("Recovered %d interrupted ingestion(s) marked as failed", count)
+    finally:
+        db.close()
     cleanup_task = asyncio.create_task(_session_cleanup_loop())
     yield
     cleanup_task.cancel()
