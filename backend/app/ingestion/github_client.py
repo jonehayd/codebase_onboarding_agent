@@ -124,6 +124,27 @@ def fetch_files_by_paths(repo: "github.Repository.Repository", paths: set[str]) 
     return files
 
 
+_CODE_EXTENSIONS = {
+    ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go",
+    ".rs", ".cs", ".rb", ".swift", ".cpp", ".c", ".h",
+    ".sql", ".sh",
+}
+_DOC_EXTENSIONS = {".md", ".mdx", ".txt"}
+
+
+def _path_priority(path: str) -> int:
+    """Return sort key: 0 = source code, 1 = config/data, 2 = documentation.
+
+    Applied before the max_files cap so code is never crowded out by docs.
+    """
+    ext = ("." + path.rsplit(".", 1)[-1].lower()) if "." in path else ""
+    if ext in _CODE_EXTENSIONS:
+        return 0
+    if ext in _DOC_EXTENSIONS:
+        return 2
+    return 1
+
+
 def get_file_tree(gh_repo, commit_sha: str) -> list[str]:
     """Return ingestable file paths via the git tree API (single API call).
 
@@ -133,17 +154,32 @@ def get_file_tree(gh_repo, commit_sha: str) -> list[str]:
     try:
         git_commit = gh_repo.get_git_commit(commit_sha)
         tree = gh_repo.get_git_tree(git_commit.tree.sha, recursive=True)
-        paths = []
-        for item in tree.tree:
-            if item.type == "blob" and should_include(item.path, item.size or 0):
-                paths.append(item.path)
-                if len(paths) >= settings.max_files_per_repo:
-                    break
+
+        # Collect every passing path before applying the cap so we can sort
+        # by priority first.  Without this, alphabetical tree order meant that
+        # docs/ would fill the cap before source code dirs were reached.
+        paths = [
+            item.path
+            for item in tree.tree
+            if item.type == "blob" and should_include(item.path, item.size or 0)
+        ]
+
         if tree.truncated:
             logger.warning(
-                "Git tree truncated for %s; only the first %d files will be ingested",
+                "Git tree truncated for %s at %d files (GitHub limit); "
+                "some files may be missing",
                 gh_repo.full_name, len(paths),
             )
+
+        paths.sort(key=_path_priority)
+
+        if len(paths) > settings.max_files_per_repo:
+            logger.warning(
+                "%s has %d ingestable files; capping at %d (source code prioritised over docs)",
+                gh_repo.full_name, len(paths), settings.max_files_per_repo,
+            )
+            paths = paths[: settings.max_files_per_repo]
+
         return paths
     except Exception as e:
         logger.error("Failed to fetch git tree for %s: %s", gh_repo.full_name, e)
