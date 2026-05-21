@@ -6,15 +6,33 @@ import ChatInput from "./ChatInput";
 
 export default function ChatPanel({ messages, onSend, isLoading }) {
   const bottomRef = useRef(null);
+  const scrollRef = useRef(null);
+  const userScrolled = useRef(false);
 
+  // Re-enable auto-scroll when the user scrolls back to the bottom.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+      if (atBottom) userScrolled.current = false;
+      else userScrolled.current = true;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll on new message content unless the user has scrolled away.
+  useEffect(() => {
+    if (!userScrolled.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   return (
     <div className="flex flex-col h-full">
       {/* scrollable message area */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto">
           <MessageList messages={messages} />
           {isLoading && (

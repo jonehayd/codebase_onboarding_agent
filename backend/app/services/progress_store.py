@@ -46,6 +46,7 @@ if settings.redis_url:
             "files_total": 0,
             "vector_count": 0,
             "percent": 0,
+            "files_truncated": 0,
             "started_at": time.time(),
             "final_elapsed": "",
             "error_message": "",
@@ -74,6 +75,7 @@ if settings.redis_url:
             "percent": int(data.get("percent") or 0),
             "elapsed_seconds": elapsed_seconds,
             "error_message": data.get("error_message") or None,
+            "files_truncated": bool(int(data.get("files_truncated") or 0)),
         }
 
     def mark_completed(repo_id: int) -> None:
@@ -130,6 +132,7 @@ else:
                 "files_total": 0,
                 "vector_count": 0,
                 "percent": 0,
+                "files_truncated": False,
                 "started_at": time.time(),
                 "final_elapsed": None,
                 "error_message": None,

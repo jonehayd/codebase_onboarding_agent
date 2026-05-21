@@ -77,6 +77,7 @@ class SessionStatusOut(BaseModel):
     elapsed_seconds: Optional[int] = None
     commit_hash: Optional[str] = None
     error_message: Optional[str] = None
+    files_truncated: bool = False
 
 
 class FreshnessOut(BaseModel):

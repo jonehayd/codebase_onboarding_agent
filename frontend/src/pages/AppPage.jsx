@@ -29,6 +29,12 @@ function normalizeSession(s) {
 export default function AppPage() {
   const [sessions, setSessions] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+
+  const persistSelectedId = useCallback((id) => {
+    setSelectedId(id);
+    if (id == null) localStorage.removeItem("selectedSessionId");
+    else localStorage.setItem("selectedSessionId", id);
+  }, []);
   const [messages, setMessages] = useState([]);
   const [files, setFiles] = useState([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -41,7 +47,14 @@ export default function AppPage() {
   // Load session list on mount.
   useEffect(() => {
     listSessions()
-      .then(({ sessions: raw }) => setSessions(raw.map(normalizeSession)))
+      .then(({ sessions: raw }) => {
+        const normalized = raw.map(normalizeSession);
+        setSessions(normalized);
+        const stored = parseInt(localStorage.getItem("selectedSessionId"), 10);
+        if (stored && normalized.some((s) => s.id === stored)) {
+          setSelectedId(stored);
+        }
+      })
       .catch(() => {});
     getMe()
       .then((u) => setHasRepoAccess(u.has_repo_access ?? false))
@@ -95,29 +108,36 @@ export default function AppPage() {
             ),
           );
           toast.info("Applying latest changes", {
-            description: "New commits were detected. Re-syncing the repository now.",
+            description:
+              "New commits were detected. Re-syncing the repository now.",
           });
         });
       })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
-  const handleSelectSession = useCallback((id) => setSelectedId(id), []);
+  const handleSelectSession = useCallback(
+    (id) => persistSelectedId(id),
+    [persistSelectedId],
+  );
 
-  const handleCreateSession = useCallback(async ({ url, title }) => {
-    const raw = await apiCreateSession(url, title);
-    const session = {
-      id: raw.session_id,
-      title: raw.title ?? title ?? `${raw.owner}/${raw.name}`,
-      repoName: `${raw.owner}/${raw.name}`,
-      status: raw.status ?? "pending",
-      lastActive: raw.created_at,
-    };
-    setSessions((prev) => [session, ...prev]);
-    setSelectedId(session.id);
-    return session;
-  }, []);
+  const handleCreateSession = useCallback(
+    async ({ url, title }) => {
+      const raw = await apiCreateSession(url, title);
+      const session = {
+        id: raw.session_id,
+        title: raw.title ?? title ?? `${raw.owner}/${raw.name}`,
+        repoName: `${raw.owner}/${raw.name}`,
+        status: raw.status ?? "pending",
+        lastActive: raw.created_at,
+      };
+      setSessions((prev) => [session, ...prev]);
+      persistSelectedId(session.id);
+      return session;
+    },
+    [persistSelectedId],
+  );
 
   const handleRenameSession = useCallback(async (id, newTitle) => {
     await updateSession(id, newTitle);
@@ -126,11 +146,14 @@ export default function AppPage() {
     );
   }, []);
 
-  const handleDeleteSession = useCallback(async (id) => {
-    await deleteSession(id);
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    setSelectedId((prev) => (prev === id ? null : prev));
-  }, []);
+  const handleDeleteSession = useCallback(
+    async (id) => {
+      await deleteSession(id);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (selectedId === id) persistSelectedId(null);
+    },
+    [selectedId, persistSelectedId],
+  );
 
   const handleIngestionComplete = useCallback(() => {
     setSessions((prev) =>
