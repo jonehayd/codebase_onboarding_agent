@@ -148,8 +148,8 @@ def _fetch_and_parse(gh_repo, path: str) -> tuple[dict, list] | None:
     return (file, chunks) if chunks else None
 
 
-_FETCH_WORKERS = 8
-_EMBED_BATCH_SIZE = 300
+_FETCH_WORKERS = 4
+_EMBED_BATCH_SIZE = 100
 _SENTINEL = object()
 
 
