@@ -17,6 +17,8 @@
 
 Paste a GitHub repository URL, wait while the code gets indexed, and then ask questions about it in plain English.
 
+![Codebase Onboarding Agent](docs/coa_image.png)
+
 This is useful when you're inheriting someone else's code, evaluating an open source project before adopting it, or trying to help a teammate understand a codebase they've never seen. No IDE plugin needed, no local clone required, just a URL.
 
 ---
