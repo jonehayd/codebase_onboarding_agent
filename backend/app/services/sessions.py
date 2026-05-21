@@ -106,6 +106,32 @@ def delete_session(session_id: int, user_id: int, db: DBSession) -> bool:
     return True
 
 
+def recover_interrupted_ingestions(db: DBSession) -> int:
+    """On startup, mark any repos stuck in pending/processing as failed.
+
+    These are jobs whose worker process was killed (OOM, crash, redeploy) before
+    they could finish. Returns the number of repos recovered.
+    """
+    stuck = db.execute(
+        select(Repositories).where(
+            Repositories.status.in_([RepoStatus.PENDING, RepoStatus.PROCESSING])
+        )
+    ).scalars().all()
+
+    for repo in stuck:
+        repo.status = RepoStatus.FAILED
+        progress_store.init_progress(repo.id)
+        progress_store.mark_failed(
+            repo.id,
+            error_message="Ingestion was interrupted (server restarted). Please retry.",
+        )
+
+    if stuck:
+        db.commit()
+
+    return len(stuck)
+
+
 def purge_stale_sessions(db: DBSession) -> int:
     """Delete all sessions inactive for more than 7 days, cascading to messages,
     share links, and orphaned repo data. Returns the number of sessions deleted.
