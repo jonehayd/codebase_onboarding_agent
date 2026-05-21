@@ -2,7 +2,7 @@ from openai import OpenAI
 import tiktoken
 from app.config import settings
 
-client = OpenAI(api_key=settings.open_ai_key)
+client = OpenAI(api_key=settings.open_ai_key, max_retries=2, timeout=30.0)
 
 _tokenizer = tiktoken.get_encoding("cl100k_base")
 _MAX_EMBED_TOKENS = 8000  # hard limit is 8192; leave a small margin
@@ -29,7 +29,7 @@ def build_embed_text(chunk: dict) -> str:
         text = _tokenizer.decode(tokens[:_MAX_EMBED_TOKENS])
     return text
 
-_MAX_BATCH_TOKENS = 250_000  # OpenAI limit is 300k; leave headroom for safety
+_MAX_BATCH_TOKENS = 50_000  # conservative limit to avoid rate limiting on large repos
 
 
 def embed_chunks(chunks: list[dict]) -> list[list[float]]:
