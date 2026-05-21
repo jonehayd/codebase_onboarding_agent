@@ -7,6 +7,7 @@ from sqlalchemy import delete as sql_delete
 from app.config import RepoStatus, settings
 from app.db.models import CodeChunks, Files, Repositories
 from app.ingestion.chunker import extract_chunks
+from app.ingestion.filter import should_include
 from app.ingestion.github_client import fetch_repo, get_file_tree, fetch_file_content
 from app.ingestion.parser import parse_file
 from app.rag.embeddings import embed_chunks
@@ -373,6 +374,7 @@ def ingest_changed_files(
         progress_store.update_progress(repo_id, stage="fetching_files", percent=0)
 
         paths_to_ingest, paths_to_delete = get_changed_file_paths(gh_repo, old_sha, new_sha)
+        paths_to_ingest = {p for p in paths_to_ingest if should_include(p, 0)}
         if not paths_to_ingest and not paths_to_delete:
             logger.info("No changed files for %s/%s; already up to date", owner, name)
             update_repo_status(repo_id, RepoStatus.COMPLETED, db)
