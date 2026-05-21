@@ -156,7 +156,7 @@ def get_shared_file_content(
     db: Session = Depends(get_db),
 ):
     """Fetch file content from GitHub for a shared session. No auth required."""
-    _, session, repo = _resolve_link(token, db)
+    link, session, repo = _resolve_link(token, db)
 
     file = db.execute(
         select(Files).where(Files.id == file_id, Files.repo_id == repo.id)
@@ -165,9 +165,9 @@ def get_shared_file_content(
     if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
-    creator = db.get(db.get_bind().__class__, link.created_by) if False else db.get(__import__('app.db.models', fromlist=['Users']).Users, link.created_by)
-    token = (creator.github_token if creator else None) or settings.github_token
-    if not token:
+    creator = db.get(Users, link.created_by)
+    gh_token = (creator.github_token if creator else None) or settings.github_token
+    if not gh_token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="File viewing via share links requires GITHUB_TOKEN to be configured.",
@@ -176,7 +176,7 @@ def get_shared_file_content(
     try:
         from github import Auth, Github
 
-        g = Github(auth=Auth.Token(token))
+        g = Github(auth=Auth.Token(gh_token))
         gh_repo = g.get_repo(f"{repo.owner}/{repo.name}")
         gh_file = gh_repo.get_contents(file.file_path)
         content = gh_file.decoded_content.decode("utf-8", errors="ignore")
