@@ -1,7 +1,7 @@
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
-import { Analytics } from "@vercel/analytics/react";
+
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
@@ -31,7 +31,6 @@ export default function App() {
         />
         <Route path="/share/:token" element={<SharePage />} />
       </Routes>
-      <Analytics />
     </BrowserRouter>
   );
 }

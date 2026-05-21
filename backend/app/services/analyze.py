@@ -209,7 +209,11 @@ async def _run_pipeline_async(repo_id: int, gh_repo, paths: list[str], db: Sessi
             if progress_store.is_cancelled(repo_id):
                 raise IngestionCancelledError()
 
-            item = await queue.get()
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue  # re-check cancellation flag while producer is still running
+
             if item is _SENTINEL:
                 break
 
@@ -230,6 +234,8 @@ async def _run_pipeline_async(repo_id: int, gh_repo, paths: list[str], db: Sessi
                         pending.append((db_file.id, chunk))
 
                     if len(pending) >= _EMBED_BATCH_SIZE:
+                        if progress_store.is_cancelled(repo_id):
+                            raise IngestionCancelledError()
                         count = await _embed_and_persist_batch(pending, db)
                         vector_count += count
                         pending = []
@@ -242,6 +248,8 @@ async def _run_pipeline_async(repo_id: int, gh_repo, paths: list[str], db: Sessi
             )
 
         if pending:
+            if progress_store.is_cancelled(repo_id):
+                raise IngestionCancelledError()
             count = await _embed_and_persist_batch(pending, db)
             vector_count += count
 

@@ -220,15 +220,25 @@ export function IngestionView({ sessionId, onComplete, onFailed }) {
         if (!active) return;
         consecutiveErrors += 1;
         if (consecutiveErrors >= MAX_ERRORS) {
-          setFetchError("Server is not responding. The server may be overloaded — wait a moment and retry.");
+          setFetchError(
+            "Server is not responding. The server may be overloaded — wait a moment and retry.",
+          );
           return;
         }
-        setFetchError(`Connection error. Retrying… (${consecutiveErrors}/${MAX_ERRORS})`);
+        setFetchError(
+          `Connection error. Retrying… (${consecutiveErrors}/${MAX_ERRORS})`,
+        );
       }
 
       if (active) {
-        const delay = Math.min(BASE_INTERVAL * 2 ** (consecutiveErrors - 1), 16000);
-        timeoutId = setTimeout(poll, consecutiveErrors > 0 ? delay : BASE_INTERVAL);
+        const delay = Math.min(
+          BASE_INTERVAL * 2 ** (consecutiveErrors - 1),
+          16000,
+        );
+        timeoutId = setTimeout(
+          poll,
+          consecutiveErrors > 0 ? delay : BASE_INTERVAL,
+        );
       }
     };
 
@@ -307,11 +317,13 @@ export function IngestionView({ sessionId, onComplete, onFailed }) {
               : isFailed
                 ? (status?.error_message ??
                   "An error occurred during ingestion")
-                : currentStage === "fetching_files"
-                  ? "Fetching repository file tree…"
-                  : currentStage === "processing"
-                    ? "Parsing, embedding & storing files…"
-                    : "Preparing…"}
+                : cancelling
+                  ? "Cancellation requested, finishing current batch…"
+                  : currentStage === "fetching_files"
+                    ? "Fetching repository file tree…"
+                    : currentStage === "processing"
+                      ? "Parsing, embedding & storing files…"
+                      : "Preparing…"}
         </p>
 
         {/* Checklist */}
