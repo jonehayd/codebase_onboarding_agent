@@ -192,7 +192,7 @@ def fetch_file_content(gh_repo, path: str) -> dict | None:
     """Fetch and decode content for a single file. Returns None on any error."""
     try:
         item = gh_repo.get_contents(path)
-        text = item.decoded_content.decode("utf-8", errors="ignore")
+        text = item.decoded_content.decode("utf-8", errors="ignore").replace("\x00", "")
         return {
             "path": path,
             "content": text,
