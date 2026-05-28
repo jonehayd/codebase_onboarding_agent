@@ -106,6 +106,7 @@ codebase_onboarding_agent/
 ├── docs/
 │   ├── Project_Overview.md                 Purpose, architecture, features, and API reference
 │   ├── Project_Plan.md                     Phase-by-phase task breakdown with current status
+│   ├── Ingestion_Pipeline_Cheat_Sheet.md   Quick reference for ingestion architecture and performance design
 │   ├── file_structure.txt                  This file
 │   ├── postgres_schema_erd.html            Visual ER diagram of the database schema
 │   ├── ingestion_pipeline.svg              Diagram of the repo ingestion flow
